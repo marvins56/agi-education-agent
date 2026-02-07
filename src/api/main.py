@@ -64,9 +64,16 @@ app.add_middleware(
 )
 
 # Import and include routers
-from src.api.routers import auth, chat, health, content  # noqa: E402
+from src.api.routers import auth, chat, content, health, profile, sessions, analytics, learning_path  # noqa: E402
+from src.api.middleware.request_id import RequestIDMiddleware  # noqa: E402
+
+app.add_middleware(RequestIDMiddleware)
 
 app.include_router(health.router, prefix="/api/v1", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(content.router, prefix="/api/v1/content", tags=["Content"])
+app.include_router(profile.router, prefix="/api/v1", tags=["Profile"])
+app.include_router(sessions.router, prefix="/api/v1", tags=["Sessions"])
+app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
+app.include_router(learning_path.router, prefix="/api/v1", tags=["Learning Path"])

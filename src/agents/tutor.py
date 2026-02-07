@@ -7,9 +7,11 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agents.base import AgentConfig, AgentContext, AgentResponse, BaseAgent
+from src.agents.strategies import StrategySelector, TeachingStrategy
 
 if TYPE_CHECKING:
     from src.memory.manager import MemoryManager
+    from src.memory.student_context import StudentContextBuilder
     from src.rag.retriever import KnowledgeRetriever
 
 VISUAL_KEYWORDS = re.compile(
@@ -19,12 +21,15 @@ VISUAL_KEYWORDS = re.compile(
 
 
 class TutorAgent(BaseAgent):
-    """Adaptive tutoring agent that uses Socratic method."""
+    """Adaptive tutoring agent with strategy selection and enriched context."""
+
+    strategy_selector: StrategySelector = StrategySelector()
 
     def __init__(
         self,
         retriever: KnowledgeRetriever | None = None,
         memory: MemoryManager | None = None,
+        context_builder: StudentContextBuilder | None = None,
         config: AgentConfig | None = None,
     ):
         if config is None:
@@ -32,9 +37,15 @@ class TutorAgent(BaseAgent):
         super().__init__(config)
         self.retriever = retriever
         self.memory = memory
+        self.context_builder = context_builder
 
-    def get_system_prompt(self, context: AgentContext) -> str:
-        """Build an adaptive system prompt from the student profile."""
+    def get_system_prompt(
+        self,
+        context: AgentContext,
+        strategy: TeachingStrategy | None = None,
+        enriched_context: dict[str, Any] | None = None,
+    ) -> str:
+        """Build an adaptive system prompt from the student profile and strategy."""
         profile = context.student_profile
         name = profile.get("name", "Student")
         learning_style = profile.get("learning_style", "visual")
@@ -58,6 +69,45 @@ class TutorAgent(BaseAgent):
                 f"- {obj}" for obj in context.learning_objectives
             )
 
+        # Strategy-specific teaching instructions
+        if strategy:
+            strategy_instructions = (
+                f"Teaching strategy: {strategy.value}\n"
+                f"{self.strategy_selector.get_strategy_prompt(strategy)}\n"
+            )
+        else:
+            strategy_instructions = (
+                "Teaching guidelines:\n"
+                "1. Use the Socratic method — guide discovery through questions rather than "
+                "giving answers directly.\n"
+                "2. Adapt to the student's learning style:\n"
+                "   - Visual: use diagrams, charts, and spatial representations.\n"
+                "   - Auditory: use verbal explanations, mnemonics, and discussions.\n"
+                "   - Kinesthetic: use hands-on examples, experiments, and practice problems.\n"
+                "   - Reading/Writing: use written explanations, lists, and note-taking prompts.\n"
+                "3. Break complex topics into smaller, manageable steps.\n"
+                "4. Encourage the student and celebrate progress.\n"
+                "5. Regularly check understanding before moving on.\n"
+            )
+
+        # Enriched context section
+        enriched_section = ""
+        if enriched_context:
+            struggles = enriched_context.get("struggle_points", [])
+            if struggles:
+                struggle_topics = ", ".join(
+                    f"{s['topic']} ({s['mastery_score']:.0f}%)" for s in struggles[:5]
+                )
+                enriched_section += f"\nStruggle areas: {struggle_topics}\n"
+
+            mastery = enriched_context.get("mastery_scores", [])
+            if mastery:
+                mastery_summary = ", ".join(
+                    f"{m['topic']}: {m['mastery_score']:.0f}%"
+                    for m in mastery[:5]
+                )
+                enriched_section += f"Recent mastery: {mastery_summary}\n"
+
         return (
             f"You are an expert adaptive tutor for {name}.\n"
             f"\n"
@@ -70,23 +120,62 @@ class TutorAgent(BaseAgent):
             f"\n"
             f"{subject_line}\n"
             f"{objectives_text}\n"
-            f"\n"
-            f"Teaching guidelines:\n"
-            f"1. Use the Socratic method — guide discovery through questions rather than "
-            f"giving answers directly.\n"
-            f"2. Adapt to the student's learning style:\n"
-            f"   - Visual: use diagrams, charts, and spatial representations.\n"
-            f"   - Auditory: use verbal explanations, mnemonics, and discussions.\n"
-            f"   - Kinesthetic: use hands-on examples, experiments, and practice problems.\n"
-            f"   - Reading/Writing: use written explanations, lists, and note-taking prompts.\n"
-            f"3. Break complex topics into smaller, manageable steps.\n"
-            f"4. Encourage the student and celebrate progress.\n"
-            f"5. Regularly check understanding before moving on.\n"
+            f"{enriched_section}\n"
+            f"{strategy_instructions}"
         )
 
     async def process(self, input_text: str, context: AgentContext) -> AgentResponse:
         """Process student input and generate a tutoring response."""
         start = time.time()
+
+        # Build enriched context if context_builder is available
+        enriched_context: dict[str, Any] | None = None
+        if self.context_builder:
+            try:
+                enriched_context = await self.context_builder.build_context(
+                    student_id=context.student_id,
+                    session_id=context.session_id,
+                )
+            except Exception:
+                enriched_context = None
+
+        # Select teaching strategy based on student mastery and history
+        strategy: TeachingStrategy | None = None
+        topic_mastery = 50.0  # default if unknown
+        attempt_count = 0
+        previous_strategy: str | None = None
+
+        if enriched_context:
+            mastery_scores = enriched_context.get("mastery_scores", [])
+            if context.current_topic and mastery_scores:
+                for m in mastery_scores:
+                    if m.get("topic") == context.current_topic:
+                        topic_mastery = m.get("mastery_score", 50.0)
+                        attempt_count = m.get("attempts", 0)
+                        break
+
+            session_state = enriched_context.get("session_state", {})
+            previous_strategy = session_state.get("last_strategy")
+
+        learning_style = context.student_profile.get("learning_style", "balanced")
+        strategy = self.strategy_selector.select_strategy(
+            learning_style=learning_style,
+            topic_mastery=topic_mastery,
+            attempt_count=attempt_count,
+            previous_strategy=previous_strategy,
+        )
+
+        # Track confusion if same topic asked 3+ times
+        if self.memory and context.current_topic:
+            try:
+                confusion_count = await self.memory.track_confusion(
+                    context.session_id, context.current_topic
+                )
+                if confusion_count >= 3:
+                    # Switch to scaffolded for confused students
+                    strategy = TeachingStrategy.scaffolded
+            except Exception:
+                pass
 
         # Retrieve relevant knowledge if a retriever is available.
         knowledge_context: list[dict[str, Any]] = []
@@ -98,7 +187,9 @@ class TutorAgent(BaseAgent):
 
         # Build message list.
         messages: list[SystemMessage | HumanMessage] = [
-            SystemMessage(content=self.get_system_prompt(context)),
+            SystemMessage(
+                content=self.get_system_prompt(context, strategy, enriched_context)
+            ),
         ]
 
         if knowledge_context:
@@ -137,6 +228,8 @@ class TutorAgent(BaseAgent):
                 doc.get("source", "unknown") for doc in knowledge_context
             ]
         metadata["needs_visual_aid"] = self._needs_visual_aid(input_text, response_text)
+        if strategy:
+            metadata["teaching_strategy"] = strategy.value
 
         return AgentResponse(
             text=response_text,

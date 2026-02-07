@@ -1,6 +1,6 @@
 """User and StudentProfile models."""
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -19,6 +19,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    last_login = Column(DateTime, nullable=True)
+    login_count = Column(Integer, default=0)
+    is_verified = Column(Boolean, default=False)
 
     profile = relationship("StudentProfile", back_populates="user", uselist=False)
 
@@ -34,6 +37,10 @@ class StudentProfile(Base):
     strengths = Column(ARRAY(String), nullable=True)
     weaknesses = Column(ARRAY(String), nullable=True)
     preferences = Column(JSONB, server_default=text("'{}'"))
+    # Engagement tracking
+    total_study_minutes = Column(Integer, default=0)
+    streak_days = Column(Integer, default=0)
+    last_study_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

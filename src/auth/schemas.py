@@ -34,3 +34,21 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class GuestTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
+
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=8)
+
+
+class UserDetailResponse(UserResponse):
+    is_active: bool
+    last_login: datetime | None = None
+
+    model_config = {"from_attributes": True}

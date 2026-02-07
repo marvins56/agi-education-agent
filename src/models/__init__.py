@@ -4,6 +4,7 @@ from src.models.database import Base, async_session, engine, get_db, init_db, cl
 from src.models.user import User, StudentProfile
 from src.models.session import Session
 from src.models.learning_event import LearningEvent
+from src.models.document import Document
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "StudentProfile",
     "Session",
     "LearningEvent",
+    "Document",
 ]

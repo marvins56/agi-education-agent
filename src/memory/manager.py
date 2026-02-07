@@ -174,6 +174,153 @@ class MemoryManager:
             for doc, meta, dist in zip(documents, metadatas, distances)
         ]
 
+    # === Scratchpad & Session Enhancements (Redis) ===
+
+    async def set_scratchpad(self, session_id: str, content: str, ttl: int = 7200) -> None:
+        """Store student's working notes for the current problem."""
+        if not self._redis:
+            return
+        key = f"session:{session_id}:scratchpad"
+        await self._redis.setex(key, ttl, content)
+
+    async def get_scratchpad(self, session_id: str) -> str | None:
+        """Retrieve the student's scratchpad content."""
+        if not self._redis:
+            return None
+        key = f"session:{session_id}:scratchpad"
+        return await self._redis.get(key)
+
+    async def set_session_mood(self, session_id: str, mood: str, ttl: int = 3600) -> None:
+        """Store a mood indicator for the current session."""
+        if not self._redis:
+            return
+        key = f"session:{session_id}:mood"
+        await self._redis.setex(key, ttl, mood)
+
+    async def get_session_mood(self, session_id: str) -> str | None:
+        """Get the current session mood indicator."""
+        if not self._redis:
+            return None
+        key = f"session:{session_id}:mood"
+        return await self._redis.get(key)
+
+    # === Student Mastery (PostgreSQL) ===
+
+    async def get_student_mastery(
+        self,
+        student_id: str,
+        subject: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query TopicMastery records for a student."""
+        if not self.db_session_factory:
+            return []
+        from src.models.mastery import TopicMastery
+        from sqlalchemy import select
+        async with self.db_session_factory() as session:
+            stmt = select(TopicMastery).where(TopicMastery.student_id == student_id)
+            if subject:
+                stmt = stmt.where(TopicMastery.subject == subject)
+            stmt = stmt.order_by(TopicMastery.subject, TopicMastery.topic)
+            result = await session.execute(stmt)
+            records = result.scalars().all()
+            return [
+                {
+                    "id": str(r.id),
+                    "subject": r.subject,
+                    "topic": r.topic,
+                    "mastery_score": r.mastery_score,
+                    "confidence": r.confidence,
+                    "attempts": r.attempts,
+                    "last_assessed": r.last_assessed.isoformat() if r.last_assessed else None,
+                    "last_reviewed": r.last_reviewed.isoformat() if r.last_reviewed else None,
+                    "decay_rate": r.decay_rate,
+                }
+                for r in records
+            ]
+
+    async def update_mastery(
+        self,
+        student_id: str,
+        subject: str,
+        topic: str,
+        new_score: float,
+        confidence: float | None = None,
+    ) -> None:
+        """Upsert a TopicMastery record."""
+        if not self.db_session_factory:
+            return
+        from src.models.mastery import TopicMastery
+        from sqlalchemy import select
+        async with self.db_session_factory() as session:
+            stmt = select(TopicMastery).where(
+                TopicMastery.student_id == student_id,
+                TopicMastery.subject == subject,
+                TopicMastery.topic == topic,
+            )
+            result = await session.execute(stmt)
+            record = result.scalars().first()
+            if record:
+                record.mastery_score = new_score
+                record.attempts = record.attempts + 1
+                if confidence is not None:
+                    record.confidence = confidence
+                record.last_assessed = datetime.now(timezone.utc)
+            else:
+                record = TopicMastery(
+                    student_id=student_id,
+                    subject=subject,
+                    topic=topic,
+                    mastery_score=new_score,
+                    confidence=confidence or 0.0,
+                    attempts=1,
+                    last_assessed=datetime.now(timezone.utc),
+                )
+                session.add(record)
+            await session.commit()
+
+    async def get_struggle_points(
+        self,
+        student_id: str,
+        threshold: float = 30.0,
+    ) -> list[dict[str, Any]]:
+        """Return topics where mastery is below the given threshold."""
+        if not self.db_session_factory:
+            return []
+        from src.models.mastery import TopicMastery
+        from sqlalchemy import select
+        async with self.db_session_factory() as session:
+            stmt = (
+                select(TopicMastery)
+                .where(
+                    TopicMastery.student_id == student_id,
+                    TopicMastery.mastery_score < threshold,
+                )
+                .order_by(TopicMastery.mastery_score.asc())
+            )
+            result = await session.execute(stmt)
+            records = result.scalars().all()
+            return [
+                {
+                    "subject": r.subject,
+                    "topic": r.topic,
+                    "mastery_score": r.mastery_score,
+                    "attempts": r.attempts,
+                }
+                for r in records
+            ]
+
+    async def track_confusion(self, session_id: str, topic: str) -> int:
+        """Increment a confusion counter in Redis for a session+topic.
+
+        Returns the new count.
+        """
+        if not self._redis:
+            return 0
+        key = f"session:{session_id}:confusion:{topic}"
+        count = await self._redis.incr(key)
+        await self._redis.expire(key, 7200)  # 2 hour TTL
+        return count
+
     async def close(self):
         if self._redis:
             await self._redis.close()

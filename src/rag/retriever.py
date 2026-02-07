@@ -4,11 +4,21 @@ import chromadb
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import Any
 
+from src.rag.ranker import ResultRanker
+from src.rag.rewriter import QueryRewriter
+
 
 class KnowledgeRetriever:
     """RAG-based knowledge retrieval using ChromaDB."""
 
-    def __init__(self, chroma_host: str = "localhost", chroma_port: int = 8100, collection_name: str = "educational_content"):
+    def __init__(
+        self,
+        chroma_host: str = "localhost",
+        chroma_port: int = 8100,
+        collection_name: str = "educational_content",
+        query_rewriter: QueryRewriter | None = None,
+        result_ranker: ResultRanker | None = None,
+    ):
         self.chroma_host = chroma_host
         self.chroma_port = chroma_port
         self.collection_name = collection_name
@@ -19,6 +29,8 @@ class KnowledgeRetriever:
             chunk_overlap=200,
             separators=["\n\n", "\n", ". ", " ", ""],
         )
+        self._rewriter = query_rewriter or QueryRewriter()
+        self._ranker = result_ranker or ResultRanker()
 
     async def initialize(self):
         self._client = chromadb.HttpClient(host=self.chroma_host, port=self.chroma_port)
@@ -57,10 +69,19 @@ class KnowledgeRetriever:
         subject: str | None = None,
         filters: dict[str, Any] | None = None,
         k: int = 5,
+        rewrite: bool = True,
     ) -> dict[str, Any]:
-        """Retrieve relevant knowledge for a query."""
+        """Retrieve relevant knowledge for a query with optional rewriting and re-ranking."""
         if not self._collection:
             return {"context": "", "sources": [], "num_results": 0}
+
+        # Query rewriting
+        search_query = query
+        if rewrite:
+            context = {}
+            if subject:
+                context["subject"] = subject
+            search_query = await self._rewriter.rewrite(query, context)
 
         where_filter = {}
         if subject:
@@ -70,7 +91,7 @@ class KnowledgeRetriever:
 
         try:
             results = self._collection.query(
-                query_texts=[query],
+                query_texts=[search_query],
                 n_results=k,
                 where=where_filter if where_filter else None,
             )
@@ -94,11 +115,42 @@ class KnowledgeRetriever:
             for doc, meta, dist in zip(documents, metadatas, distances)
         ]
 
+        # Re-rank results
+        sources = self._ranker.rank(sources, query)
+
+        # Format source citations
+        citations = self._format_citations(sources)
+
         return {
             "context": "\n\n---\n\n".join(documents),
             "sources": sources,
+            "citations": citations,
             "num_results": len(documents),
         }
+
+    @staticmethod
+    def _format_citations(sources: list[dict]) -> list[dict]:
+        """Format sources into structured citations."""
+        citations = []
+        for i, src in enumerate(sources, 1):
+            meta = src.get("metadata", {})
+            citations.append({
+                "index": i,
+                "preview": src.get("content_preview", ""),
+                "source": meta.get("source", "unknown"),
+                "document_id": meta.get("document_id", ""),
+                "relevance_score": src.get("_rank_score", 1.0 - src.get("distance", 0.0)),
+            })
+        return citations
+
+    def delete_document_chunks(self, document_id: str) -> None:
+        """Delete all chunks for a given document_id from the collection."""
+        if not self._collection:
+            return
+        try:
+            self._collection.delete(where={"document_id": document_id})
+        except Exception:
+            pass  # Best effort deletion
 
     def close(self):
         self._client = None
