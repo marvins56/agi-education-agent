@@ -1,3 +1,5 @@
+import secrets
+
 from pydantic_settings import BaseSettings
 
 
@@ -7,6 +9,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "EduAGI"
     DEBUG: bool = False
+    TESTING: bool = False
     SECRET_KEY: str = "change-me"
 
     # Database
@@ -24,9 +27,10 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = ""
 
     # Security
-    JWT_SECRET: str = "change-me-jwt"
+    JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
@@ -35,3 +39,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# C6 fix: Reject predictable JWT secrets in non-debug mode; auto-generate for dev/test
+_INSECURE_SECRETS = {"change-me-jwt", "change-me", "secret", ""}
+if settings.JWT_SECRET in _INSECURE_SECRETS:
+    if not settings.DEBUG and not settings.TESTING:
+        raise RuntimeError(
+            "CRITICAL: JWT_SECRET is not set or uses a default value. "
+            "Set a strong JWT_SECRET (32+ characters) via environment variable or .env file."
+        )
+    # In debug/test mode, generate a random secret so tokens are unpredictable
+    settings.JWT_SECRET = secrets.token_urlsafe(32)

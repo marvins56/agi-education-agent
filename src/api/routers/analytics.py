@@ -66,6 +66,28 @@ async def get_student_streaks(
     }
 
 
+@router.get("/analytics/student/alerts")
+async def get_student_alerts(
+    current_user: User = Depends(get_current_user),
+    aggregator: DataAggregator = Depends(_get_aggregator),
+):
+    """Check for at-risk indicators and return alerts for the current student."""
+    summary = await aggregator.get_student_summary(str(current_user.id))
+
+    # Build the data dict expected by AlertEngine
+    student_data = {
+        "days_since_last_activity": 30 - summary.get("active_days", 0)
+        if summary.get("total_events", 0) == 0
+        else 0,
+        "recent_mastery_scores": [],
+        "engagement_rate": summary.get("engagement_rate", 0.0),
+        "recent_quiz_scores": summary.get("quiz_score_trend", {}).get("scores", []),
+    }
+
+    alerts = AlertEngine.check_at_risk(student_data)
+    return {"success": True, "data": alerts}
+
+
 # ── Teacher endpoints ──────────────────────────────────────────────────────
 
 @router.get("/analytics/teacher/class/{class_id}/overview")

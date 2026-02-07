@@ -4,13 +4,14 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db
+from src.api.dependencies import get_current_user, get_db, get_memory
 from src.learning_path.graph import PrerequisiteGraph
 from src.learning_path.recommender import PathRecommender
 from src.learning_path.spaced_repetition import SpacedRepetitionScheduler
+from src.memory.manager import MemoryManager
 from src.models.learning_path import ReviewSchedule, StudentGoal, TopicEdge, TopicNode
 from src.models.user import User
 
@@ -32,6 +33,7 @@ class ReviewCompletedRequest(BaseModel):
 async def get_recommended_path(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    memory_manager: MemoryManager = Depends(get_memory),
 ):
     """Get personalized study path based on goals and prerequisites."""
     graph = PrerequisiteGraph()
@@ -56,8 +58,11 @@ async def get_recommended_path(
         for g in goals
     ]
 
-    # For now, student_mastery is empty — will be populated by other features
-    student_mastery: dict[str, float] = {}
+    # Load actual student mastery data from TopicMastery records
+    mastery_records = await memory_manager.get_student_mastery(str(current_user.id))
+    student_mastery: dict[str, float] = {
+        r["topic"]: r["mastery_score"] for r in mastery_records
+    }
 
     recommender = PathRecommender(graph)
     recommendations = recommender.recommend(
@@ -80,10 +85,17 @@ async def get_prerequisite_graph(
     )
     nodes = result.scalars().all()
 
-    node_ids = {str(n.id) for n in nodes}
-
-    result = await db.execute(select(TopicEdge))
-    all_edges = result.scalars().all()
+    # Filter edges at SQL level instead of loading all edges
+    node_id_list = [n.id for n in nodes]
+    result = await db.execute(
+        select(TopicEdge).where(
+            or_(
+                TopicEdge.from_topic_id.in_(node_id_list),
+                TopicEdge.to_topic_id.in_(node_id_list),
+            )
+        )
+    )
+    filtered_edges = result.scalars().all()
 
     edges = [
         {
@@ -92,8 +104,7 @@ async def get_prerequisite_graph(
             "relationship": e.relationship_type,
             "weight": e.weight,
         }
-        for e in all_edges
-        if str(e.from_topic_id) in node_ids or str(e.to_topic_id) in node_ids
+        for e in filtered_edges
     ]
 
     node_list = [

@@ -1,5 +1,6 @@
 """Content upload, document management, and search endpoints."""
 
+import logging
 import os
 import re
 import uuid
@@ -11,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db, get_retriever
+from src.auth.rbac import Role, require_role
 from src.documents.chunker import SemanticChunker
 from src.documents.enricher import ContentEnricher
 from src.documents.processor import DocumentProcessor
@@ -18,11 +20,20 @@ from src.models.document import Document
 from src.models.user import User
 from src.rag.retriever import KnowledgeRetriever
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "uploads")
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+
+# Magic byte signatures for allowed file types
+_MAGIC_BYTES: dict[str, list[bytes]] = {
+    ".pdf": [b"%PDF"],
+    ".docx": [b"PK\x03\x04"],  # ZIP-based format
+}
+# .txt and .md have no magic bytes -- only check the binary types
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -75,7 +86,7 @@ async def upload_content(
     title: str | None = Query(None),
     subject: str | None = Query(None),
     grade_level: str | None = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
     retriever: KnowledgeRetriever = Depends(get_retriever),
 ):
@@ -94,6 +105,15 @@ async def upload_content(
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File exceeds maximum size of 50MB")
+
+    # Validate magic bytes for binary file types
+    expected_magic = _MAGIC_BYTES.get(ext)
+    if expected_magic:
+        if not any(content.startswith(sig) for sig in expected_magic):
+            raise HTTPException(
+                status_code=400,
+                detail=f"File content does not match expected format for {ext}",
+            )
 
     # Sanitize and save file
     safe_name = _sanitize_filename(file.filename)
@@ -150,7 +170,7 @@ async def upload_content(
 @router.post("/upload-url")
 async def upload_url(
     body: UploadUrlRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
     retriever: KnowledgeRetriever = Depends(get_retriever),
 ):
@@ -273,7 +293,7 @@ async def get_document(
 @router.delete("/documents/{document_id}")
 async def delete_document(
     document_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
     retriever: KnowledgeRetriever = Depends(get_retriever),
 ):
@@ -291,9 +311,12 @@ async def delete_document(
     # Remove chunks from ChromaDB
     retriever.delete_document_chunks(document_id)
 
-    # Delete the file if it exists
+    # Delete the file if it exists and is within UPLOAD_DIR
     if doc.file_path and os.path.exists(doc.file_path):
-        os.remove(doc.file_path)
+        real_path = os.path.realpath(doc.file_path)
+        real_upload_dir = os.path.realpath(UPLOAD_DIR)
+        if real_path.startswith(real_upload_dir + os.sep):
+            os.remove(real_path)
 
     await db.delete(doc)
 
@@ -305,6 +328,7 @@ async def search_content(
     q: str = Query("", description="Search query"),
     subject: str | None = Query(None),
     limit: int = Query(5, ge=1, le=20),
+    user: User = Depends(get_current_user),
     retriever: KnowledgeRetriever = Depends(get_retriever),
 ):
     """Search the knowledge base with enhanced RAG and source citations."""

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -117,7 +119,7 @@ class AutoGrader:
             parsed = json.loads(response.content)
             return GradeResult(
                 question_id=q_id,
-                score=min(parsed.get("score", 0), max_score),
+                score=max(0, min(parsed.get("score", 0), max_score)),
                 max_score=max_score,
                 feedback=parsed.get("feedback", ""),
                 correct=parsed.get("correct", False),
@@ -174,9 +176,8 @@ class AutoGrader:
             )),
             HumanMessage(content=(
                 f"Essay prompt: {question.get('content', '')}\n"
-                f"Additional rubric: {rubric}\n" if rubric else
-                f"Essay prompt: {question.get('content', '')}\n"
-                f"Max score: {max_score}\n\n"
+                + (f"Additional rubric: {rubric}\n" if rubric else "")
+                + f"Max score: {max_score}\n\n"
                 f"Student essay:\n{answer}\n\n"
                 "Grade this essay according to the weighted criteria."
             )),
@@ -184,7 +185,7 @@ class AutoGrader:
 
         try:
             parsed = json.loads(response.content)
-            score = min(parsed.get("score", 0), max_score)
+            score = max(0, min(parsed.get("score", 0), max_score))
             return GradeResult(
                 question_id=q_id,
                 score=score,
@@ -236,22 +237,60 @@ class AutoGrader:
                 correct=False,
             )
 
-        # Combine student code with test code
-        full_code = f"{answer}\n\n{test_code}"
+        # Build sandboxed wrapper that restricts dangerous builtins
+        sandbox_wrapper = textwrap.dedent("""\
+            import resource as _resource
+            # Set resource limits BEFORE restricting builtins
+            # Limit memory to 50MB
+            _resource.setrlimit(_resource.RLIMIT_AS, (50 * 1024 * 1024, 50 * 1024 * 1024))
+            # Limit file size to 1MB
+            _resource.setrlimit(_resource.RLIMIT_FSIZE, (1 * 1024 * 1024, 1 * 1024 * 1024))
+            # No new processes
+            _resource.setrlimit(_resource.RLIMIT_NPROC, (0, 0))
+            del _resource
 
-        # Execute in a subprocess with timeout
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, dir=tempfile.gettempdir()
-        ) as f:
-            f.write(full_code)
-            temp_path = f.name
+            import builtins as _builtins
 
+            _original_import = _builtins.__import__
+
+            def _make_safe_import(_orig, _blocked):
+                def _safe_import(name, *args, **kwargs):
+                    if name.split('.')[0] in _blocked:
+                        raise ImportError(f"Module '{name}' is not allowed")
+                    return _orig(name, *args, **kwargs)
+                return _safe_import
+
+            _builtins.__import__ = _make_safe_import(_original_import, frozenset({
+                'os', 'sys', 'subprocess', 'shutil', 'signal',
+                'socket', 'http', 'urllib', 'requests', 'pathlib',
+                'ctypes', 'importlib', 'code', 'codeop', 'compileall',
+                'multiprocessing', 'threading', 'resource',
+            }))
+
+            # Disable dangerous builtins
+            for _name in ('exec', 'eval', 'compile', 'open', 'breakpoint', 'exit', 'quit'):
+                if hasattr(_builtins, _name):
+                    setattr(_builtins, _name, None)
+
+            del _builtins, _original_import, _make_safe_import, _name
+        """)
+
+        full_code = f"{sandbox_wrapper}\n\n{answer}\n\n{test_code}"
+
+        # Execute in a dedicated temp directory with sandboxing
+        sandbox_dir = tempfile.mkdtemp(prefix="code_grade_")
+        temp_path = os.path.join(sandbox_dir, "submission.py")
         try:
+            with open(temp_path, "w") as f:
+                f.write(full_code)
+
             result = subprocess.run(
-                ["python3", temp_path],
+                ["python3", "-I", temp_path],
                 capture_output=True,
                 text=True,
                 timeout=5,
+                env={},
+                cwd=sandbox_dir,
             )
 
             if result.returncode == 0:
@@ -263,12 +302,16 @@ class AutoGrader:
                     correct=True,
                 )
             else:
+                # Sanitize error output to avoid leaking internal paths
                 error_msg = result.stderr[:500] if result.stderr else "Tests failed."
+                # Strip file paths from error messages
+                sanitized = error_msg.replace(temp_path, "<submission>")
+                sanitized = sanitized.replace(sandbox_dir, "<sandbox>")
                 return GradeResult(
                     question_id=q_id,
                     score=0,
                     max_score=max_score,
-                    feedback=f"Tests failed: {error_msg}",
+                    feedback=f"Tests failed: {sanitized}",
                     correct=False,
                 )
         except subprocess.TimeoutExpired:
@@ -280,4 +323,6 @@ class AutoGrader:
                 correct=False,
             )
         finally:
-            Path(temp_path).unlink(missing_ok=True)
+            # Clean up the entire sandbox directory
+            import shutil
+            shutil.rmtree(sandbox_dir, ignore_errors=True)

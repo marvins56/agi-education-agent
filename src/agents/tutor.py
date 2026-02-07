@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import re
 import time
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -137,6 +140,7 @@ class TutorAgent(BaseAgent):
                     session_id=context.session_id,
                 )
             except Exception:
+                logger.warning("Failed to build enriched context for student %s", context.student_id, exc_info=True)
                 enriched_context = None
 
         # Select teaching strategy based on student mastery and history
@@ -175,15 +179,18 @@ class TutorAgent(BaseAgent):
                     # Switch to scaffolded for confused students
                     strategy = TeachingStrategy.scaffolded
             except Exception:
-                pass
+                logger.warning("Failed to track confusion for topic %s", context.current_topic, exc_info=True)
 
         # Retrieve relevant knowledge if a retriever is available.
-        knowledge_context: list[dict[str, Any]] = []
+        rag_result: dict[str, Any] = {}
         if self.retriever is not None:
-            knowledge_context = await self.retriever.retrieve(
+            rag_result = await self.retriever.retrieve(
                 query=input_text,
                 subject=context.current_subject,
             )
+
+        knowledge_sources: list[dict[str, Any]] = rag_result.get("sources", [])
+        knowledge_text: str = rag_result.get("context", "")
 
         # Build message list.
         messages: list[SystemMessage | HumanMessage] = [
@@ -192,15 +199,12 @@ class TutorAgent(BaseAgent):
             ),
         ]
 
-        if knowledge_context:
-            sources_text = "\n\n".join(
-                doc.get("content", "") for doc in knowledge_context
-            )
+        if knowledge_text:
             messages.append(
                 SystemMessage(
                     content=(
                         "Relevant knowledge context (use to inform your answer, "
-                        "but do not quote verbatim):\n\n" + sources_text
+                        "but do not quote verbatim):\n\n" + knowledge_text
                     )
                 )
             )
@@ -223,9 +227,10 @@ class TutorAgent(BaseAgent):
         elapsed = time.time() - start
 
         metadata: dict[str, Any] = {}
-        if knowledge_context:
+        if knowledge_sources:
             metadata["knowledge_sources"] = [
-                doc.get("source", "unknown") for doc in knowledge_context
+                src.get("metadata", {}).get("source", "unknown")
+                for src in knowledge_sources
             ]
         metadata["needs_visual_aid"] = self._needs_visual_aid(input_text, response_text)
         if strategy:

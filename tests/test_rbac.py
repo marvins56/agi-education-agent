@@ -87,5 +87,6 @@ class TestRequireRole:
         mock_user = MagicMock()
         mock_user.role = "invalid_role"
         checker = require_role(Role.student)
-        with pytest.raises(ValueError):
+        with pytest.raises(HTTPException) as exc_info:
             await checker(current_user=mock_user)
+        assert exc_info.value.status_code == 403

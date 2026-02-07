@@ -204,7 +204,7 @@ class TestUploadEndpoint:
         mock_user.id = uuid.uuid4()
         mock_user.email = "test@example.com"
         mock_user.name = "Test User"
-        mock_user.role = "student"
+        mock_user.role = "teacher"
 
         async def override_get_current_user():
             return mock_user
@@ -263,7 +263,14 @@ class TestSearchEndpoint:
             importlib.reload(src.api.main)
             app = src.api.main.app
 
-        from src.api.dependencies import get_retriever
+        from src.api.dependencies import get_current_user, get_retriever
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.role = "student"
+
+        async def override_get_current_user():
+            return mock_user
 
         mock_retriever = AsyncMock()
         mock_retriever.retrieve = AsyncMock(return_value={
@@ -287,6 +294,7 @@ class TestSearchEndpoint:
             "num_results": 1,
         })
 
+        app.dependency_overrides[get_current_user] = override_get_current_user
         app.dependency_overrides[get_retriever] = lambda: mock_retriever
 
         transport = ASGITransport(app=app)
@@ -322,9 +330,17 @@ class TestSearchEndpoint:
             importlib.reload(src.api.main)
             app = src.api.main.app
 
-        from src.api.dependencies import get_retriever
+        from src.api.dependencies import get_current_user, get_retriever
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.role = "student"
+
+        async def override_get_current_user():
+            return mock_user
 
         mock_retriever = MagicMock()
+        app.dependency_overrides[get_current_user] = override_get_current_user
         app.dependency_overrides[get_retriever] = lambda: mock_retriever
 
         transport = ASGITransport(app=app)

@@ -232,8 +232,14 @@ async def test_create_assessment_endpoint(assessment_client):
         app = FastAPI()
         app.include_router(router, prefix="/api/v1/assessments")
 
+        # Use teacher role since create_assessment requires teacher/admin
+        mock_teacher = MagicMock()
+        mock_teacher.id = mock_user.id
+        mock_teacher.email = mock_user.email
+        mock_teacher.role = "teacher"
+
         async def override_get_current_user():
-            return mock_user
+            return mock_teacher
 
         async def override_get_db():
             yield mock_session

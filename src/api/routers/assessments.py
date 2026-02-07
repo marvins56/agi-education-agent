@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from src.api.dependencies import get_current_user, get_db
 from src.assessment.generator import QuestionGenerator
 from src.assessment.grader import AutoGrader
+from src.auth.rbac import Role, require_role
 from src.assessment.schemas import (
     AssessmentCreate,
     AssessmentResponse,
@@ -32,7 +33,7 @@ router = APIRouter(tags=["Assessments"])
 @router.post("", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_assessment(
     body: AssessmentCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
 ):
     """Create an assessment with optional inline questions."""
@@ -126,6 +127,10 @@ async def get_assessment(
     if assessment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
 
+    # Access control: only the creator can view via this endpoint
+    if assessment.created_by != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this assessment")
+
     questions = [
         QuestionResponse(
             id=str(q.id),
@@ -152,7 +157,7 @@ async def get_assessment(
 @router.post("/generate", response_model=list[QuestionCreate])
 async def generate_questions(
     body: GenerateRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.teacher, Role.admin)),
 ):
     """AI-generate questions for a topic."""
     generator = QuestionGenerator()
@@ -223,7 +228,7 @@ async def quick_quiz(
 async def generate_for_assessment(
     assessment_id: uuid.UUID,
     body: GenerateRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
 ):
     """AI-generate questions and add them to an existing assessment."""
@@ -303,6 +308,19 @@ async def submit_assessment(
 
     if assessment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+
+    # Check for duplicate submission
+    existing = await db.execute(
+        select(Submission).where(
+            Submission.assessment_id == assessment_id,
+            Submission.student_id == user.id,
+        )
+    )
+    if existing.scalars().first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already submitted this assessment",
+        )
 
     # Build question dicts for the grader
     question_dicts = [

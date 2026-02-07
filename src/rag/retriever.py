@@ -1,3 +1,4 @@
+import logging
 import pathlib
 
 import chromadb
@@ -6,6 +7,8 @@ from typing import Any
 
 from src.rag.ranker import ResultRanker
 from src.rag.rewriter import QueryRewriter
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeRetriever:
@@ -96,7 +99,7 @@ class KnowledgeRetriever:
                 where=where_filter if where_filter else None,
             )
         except Exception:
-            # Collection may be empty or filter invalid
+            logger.warning("ChromaDB query failed for query: %s", search_query[:100], exc_info=True)
             return {"context": "", "sources": [], "num_results": 0}
 
         if not results or not results.get("documents") or not results["documents"][0]:
@@ -150,7 +153,7 @@ class KnowledgeRetriever:
         try:
             self._collection.delete(where={"document_id": document_id})
         except Exception:
-            pass  # Best effort deletion
+            logger.warning("Failed to delete chunks for document %s from ChromaDB", document_id, exc_info=True)
 
     def close(self):
         self._client = None

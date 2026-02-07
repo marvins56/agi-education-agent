@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class QuestionType(str, Enum):
@@ -61,8 +61,21 @@ class AssessmentResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+MAX_ANSWER_LENGTH = 50_000  # 50KB per answer
+
+
 class SubmissionCreate(BaseModel):
     answers: dict[str, str]
+
+    @field_validator("answers")
+    @classmethod
+    def validate_answer_lengths(cls, v: dict[str, str]) -> dict[str, str]:
+        for key, answer in v.items():
+            if len(answer) > MAX_ANSWER_LENGTH:
+                raise ValueError(
+                    f"Answer for question '{key}' exceeds maximum length of {MAX_ANSWER_LENGTH} characters"
+                )
+        return v
 
 
 class GradeResult(BaseModel):

@@ -27,14 +27,22 @@ def require_role(*allowed_roles: Role):
     """Dependency that checks if the current user has one of the allowed roles."""
 
     async def _check_role(current_user: User = Depends(get_current_user)):
-        user_role = Role(current_user.role)
+        try:
+            user_role = Role(current_user.role)
+        except ValueError:
+            # F-30 fix: Unknown roles (e.g. guest) get 403 instead of 500
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="not authorized for this action",
+            )
         # Admin can access everything
         if user_role == Role.admin:
             return current_user
         if user_role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{current_user.role}' not authorized for this action",
+                # F-34 fix: Don't leak user role in error message
+                detail="not authorized for this action",
             )
         return current_user
 

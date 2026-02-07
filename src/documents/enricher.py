@@ -1,8 +1,11 @@
 """Content enrichment with keyword extraction and optional LLM enhancement."""
 
+import logging
 import re
 from collections import Counter
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 # Common English stop words to exclude from keyword extraction
@@ -39,7 +42,7 @@ class ContentEnricher:
                 enriched = await self._llm_enrich(text)
                 meta.update(enriched)
             except Exception:
-                pass  # Graceful fallback to basic enrichment
+                logger.warning("LLM enrichment failed, falling back to basic enrichment", exc_info=True)
 
         return meta
 

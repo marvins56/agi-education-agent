@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.analytics.alerts import AlertEngine
 from src.analytics.calculator import MetricsCalculator
+from src.models.analytics import DailyMetric, WeeklyAggregate
 from src.models.learning_event import LearningEvent
 
 
@@ -108,14 +109,19 @@ class DataAggregator:
                 for (day, hour), count in sorted(heatmap.items())
             ]
 
-    async def get_student_mastery_by_subject(self, student_id: str) -> dict:
+    async def get_student_mastery_by_subject(
+        self, student_id: str, days: int = 90
+    ) -> dict:
         """Return mastery levels grouped by subject and topic."""
         async with self.db_session_factory() as session:
-            result = await session.execute(
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            stmt = (
                 select(LearningEvent)
                 .where(LearningEvent.student_id == student_id)
                 .where(LearningEvent.subject.isnot(None))
+                .where(LearningEvent.created_at >= cutoff)
             )
+            result = await session.execute(stmt)
             events = result.scalars().all()
 
             subjects: dict[str, dict] = {}
@@ -192,3 +198,126 @@ class DataAggregator:
         Stub until class enrollment tables are available.
         """
         return []
+
+    # ── Metric materialization ────────────────────────────────────────────
+
+    async def record_daily_metrics(
+        self, student_id: str, target_date: date
+    ) -> dict:
+        """Compute and persist daily metrics for a student.
+
+        Fetches learning events for the given date, computes aggregate metrics
+        using MetricsCalculator, and upserts a DailyMetric row.
+        """
+        async with self.db_session_factory() as session:
+            day_start = datetime.combine(target_date, datetime.min.time()).replace(
+                tzinfo=timezone.utc
+            )
+            day_end = day_start + timedelta(days=1)
+
+            result = await session.execute(
+                select(LearningEvent)
+                .where(LearningEvent.student_id == student_id)
+                .where(LearningEvent.created_at >= day_start)
+                .where(LearningEvent.created_at < day_end)
+            )
+            events = result.scalars().all()
+
+            event_dicts = [
+                {
+                    "event_type": e.event_type,
+                    "subject": e.subject,
+                    "topic": e.topic,
+                    "outcome": e.outcome,
+                    "duration_minutes": (e.data or {}).get("duration_minutes", 0),
+                }
+                for e in events
+            ]
+
+            aggregated = self.calc.aggregate_daily_metrics(event_dicts, target_date)
+
+            # Upsert: check if a row already exists
+            existing = await session.execute(
+                select(DailyMetric)
+                .where(DailyMetric.student_id == student_id)
+                .where(DailyMetric.date == target_date)
+            )
+            metric = existing.scalars().first()
+
+            if metric:
+                metric.sessions_count = aggregated["sessions_count"]
+                metric.time_studied_minutes = aggregated["time_studied_minutes"]
+                metric.questions_answered = aggregated["questions_answered"]
+                metric.accuracy = aggregated["accuracy"]
+                metric.topics_covered = aggregated["topics"]
+            else:
+                metric = DailyMetric(
+                    student_id=student_id,
+                    date=target_date,
+                    sessions_count=aggregated["sessions_count"],
+                    time_studied_minutes=aggregated["time_studied_minutes"],
+                    questions_answered=aggregated["questions_answered"],
+                    accuracy=aggregated["accuracy"],
+                    topics_covered=aggregated["topics"],
+                )
+                session.add(metric)
+
+            await session.commit()
+            return aggregated
+
+    async def record_weekly_aggregate(
+        self, student_id: str, week_start: date
+    ) -> dict:
+        """Compute and persist weekly aggregates for a student.
+
+        Summarises DailyMetric rows for the given week.
+        """
+        async with self.db_session_factory() as session:
+            week_end = week_start + timedelta(days=7)
+
+            result = await session.execute(
+                select(DailyMetric)
+                .where(DailyMetric.student_id == student_id)
+                .where(DailyMetric.date >= week_start)
+                .where(DailyMetric.date < week_end)
+            )
+            daily_rows = result.scalars().all()
+
+            active_days = len(daily_rows)
+            engagement = self.calc.calculate_engagement_rate(active_days, 7)
+            accuracies = [d.accuracy for d in daily_rows if d.accuracy is not None]
+            avg_mastery = sum(accuracies) / len(accuracies) if accuracies else 0.0
+
+            data = {
+                "week_start": week_start.isoformat(),
+                "avg_mastery": round(avg_mastery, 2),
+                "engagement_rate": round(engagement, 2),
+                "velocity": 0.0,
+                "streak_max": active_days,
+            }
+
+            existing = await session.execute(
+                select(WeeklyAggregate)
+                .where(WeeklyAggregate.student_id == student_id)
+                .where(WeeklyAggregate.week_start == week_start)
+            )
+            agg = existing.scalars().first()
+
+            if agg:
+                agg.avg_mastery = data["avg_mastery"]
+                agg.engagement_rate = data["engagement_rate"]
+                agg.velocity = data["velocity"]
+                agg.streak_max = data["streak_max"]
+            else:
+                agg = WeeklyAggregate(
+                    student_id=student_id,
+                    week_start=week_start,
+                    avg_mastery=data["avg_mastery"],
+                    velocity=data["velocity"],
+                    engagement_rate=data["engagement_rate"],
+                    streak_max=data["streak_max"],
+                )
+                session.add(agg)
+
+            await session.commit()
+            return data
