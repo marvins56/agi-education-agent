@@ -2,6 +2,11 @@
 
 from collections import deque
 
+# Supported relationship types between topics
+REQUIRES = "requires"        # Hard prerequisite — must master before advancing
+RECOMMENDS = "recommends"    # Soft prerequisite — helpful but not required
+COMPLEMENTS = "complements"  # Related topic — useful for broader understanding
+
 
 class PrerequisiteGraph:
     """Directed acyclic graph of topic prerequisites."""
@@ -9,10 +14,12 @@ class PrerequisiteGraph:
     def __init__(self):
         self.nodes: dict[str, dict] = {}
         self.edges: list[dict] = []
-        # Adjacency: topic_id -> list of topic_ids it requires
+        # Adjacency: topic_id -> list of (topic_id, relationship) it requires
         self._prereqs: dict[str, list[str]] = {}
         # Reverse adjacency: topic_id -> list of topic_ids that depend on it
         self._dependents: dict[str, list[str]] = {}
+        # Edge metadata: (from, to) -> {relationship, weight}
+        self._edge_meta: dict[tuple[str, str], dict] = {}
 
     def add_topic(
         self,
@@ -37,12 +44,15 @@ class PrerequisiteGraph:
         self,
         from_topic_id: str,
         to_topic_id: str,
-        relationship: str = "requires",
+        relationship: str = REQUIRES,
         weight: float = 1.0,
     ) -> None:
         """Add a prerequisite edge: to_topic_id requires from_topic_id.
 
-        Meaning: to learn to_topic_id you must first know from_topic_id.
+        Supported relationship types:
+        - "requires": hard prerequisite (must master first)
+        - "recommends": soft prerequisite (helpful but optional)
+        - "complements": related topic (broadens understanding)
         """
         self.edges.append({
             "from_topic_id": from_topic_id,
@@ -52,6 +62,15 @@ class PrerequisiteGraph:
         })
         self._prereqs.setdefault(to_topic_id, []).append(from_topic_id)
         self._dependents.setdefault(from_topic_id, []).append(to_topic_id)
+        self._edge_meta[(from_topic_id, to_topic_id)] = {
+            "relationship": relationship,
+            "weight": weight,
+        }
+
+    def get_edge_relationship(self, from_id: str, to_id: str) -> str:
+        """Return the relationship type for an edge, defaulting to 'requires'."""
+        meta = self._edge_meta.get((from_id, to_id))
+        return meta["relationship"] if meta else REQUIRES
 
     def get_prerequisites(self, topic_id: str) -> list[str]:
         """Return direct prerequisites for a topic."""
@@ -99,8 +118,12 @@ class PrerequisiteGraph:
         student_mastery: dict[str, float],
         target_topics: list[str],
         threshold: float = 50.0,
+        include_soft: bool = False,
     ) -> list[dict]:
         """Find topics where mastery < threshold that are prerequisites of targets.
+
+        By default only follows "requires" edges. Set include_soft=True to also
+        include "recommends" and "complements" edges.
 
         Returns list sorted by prerequisite depth (deepest foundations first).
         """
@@ -108,6 +131,9 @@ class PrerequisiteGraph:
 
         def find_depth(topic_id: str, depth: int) -> None:
             for prereq in self._prereqs.get(topic_id, []):
+                rel = self.get_edge_relationship(prereq, topic_id)
+                if not include_soft and rel != REQUIRES:
+                    continue
                 mastery = student_mastery.get(prereq, 0.0)
                 if mastery < threshold:
                     if prereq not in gaps or depth + 1 > gaps[prereq]:

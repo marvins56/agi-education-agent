@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.analytics.alerts import AlertEngine
 from src.analytics.calculator import MetricsCalculator
 from src.models.learning_event import LearningEvent
 
@@ -36,6 +37,7 @@ class DataAggregator:
                     "engagement_rate": 0.0,
                     "streak": 0,
                     "accuracy": 0.0,
+                    "quiz_score_trend": {"average": 0.0, "direction": "stable", "scores": []},
                     "best_study_time": None,
                     "velocity": 0.0,
                     "active_days": 0,
@@ -52,12 +54,28 @@ class DataAggregator:
             correct = sum(1 for e in quiz_events if e.outcome == "correct")
             accuracy = self.calc.calculate_accuracy_rate(correct, len(quiz_events))
 
+            # Quiz score trend
+            quiz_scores = []
+            for e in quiz_events:
+                if e.data and isinstance(e.data, dict) and "score" in e.data:
+                    quiz_scores.append(float(e.data["score"]))
+            quiz_trend = self.calc.calculate_quiz_score_trend(quiz_scores)
+
+            # Best study time
+            session_data = []
+            for e in quiz_events:
+                if e.created_at:
+                    score = 100.0 if e.outcome == "correct" else 0.0
+                    session_data.append({"hour": e.created_at.hour, "accuracy": score})
+            best_time = self.calc.calculate_best_study_time(session_data)
+
             return {
                 "total_events": len(events),
                 "engagement_rate": round(engagement, 2),
                 "streak": streak,
                 "accuracy": round(accuracy, 2),
-                "best_study_time": None,
+                "quiz_score_trend": quiz_trend,
+                "best_study_time": best_time,
                 "velocity": 0.0,
                 "active_days": len(active_dates),
                 "total_days": 30,
@@ -91,11 +109,7 @@ class DataAggregator:
             ]
 
     async def get_student_mastery_by_subject(self, student_id: str) -> dict:
-        """Return mastery levels grouped by subject and topic.
-
-        Mastery data is derived from learning events. If no mastery data
-        exists yet, returns empty subjects.
-        """
+        """Return mastery levels grouped by subject and topic."""
         async with self.db_session_factory() as session:
             result = await session.execute(
                 select(LearningEvent)
@@ -125,7 +139,6 @@ class DataAggregator:
                     if event.outcome == "correct":
                         entry["correct"] += 1
 
-            # Convert to list format with mastery scores
             result_dict = {}
             for subj, data in subjects.items():
                 topic_list = []
@@ -147,3 +160,35 @@ class DataAggregator:
                 result_dict[subj] = {"topics": topic_list}
 
             return result_dict
+
+    # ── Teacher / class-level methods ──────────────────────────────────────
+
+    async def get_class_overview(self, class_id: str) -> dict:
+        """Get class-level aggregate metrics.
+
+        Note: class enrollment tables are not yet implemented.
+        Returns a stub with the expected structure so the endpoint is functional.
+        When class enrollment is added, this will query enrolled students.
+        """
+        return {
+            "class_id": class_id,
+            "class_avg_mastery": 0.0,
+            "class_engagement": 0.0,
+            "at_risk_count": 0,
+            "total_students": 0,
+            "topic_difficulty_ranking": [],
+        }
+
+    async def get_class_students(self, class_id: str) -> list[dict]:
+        """Get per-student metrics for a class.
+
+        Stub until class enrollment tables are available.
+        """
+        return []
+
+    async def get_class_at_risk(self, class_id: str) -> list[dict]:
+        """Get at-risk students in a class with alerts.
+
+        Stub until class enrollment tables are available.
+        """
+        return []

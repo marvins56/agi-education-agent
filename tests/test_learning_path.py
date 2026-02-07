@@ -2,7 +2,7 @@
 
 from datetime import date, timedelta
 
-from src.learning_path.graph import PrerequisiteGraph
+from src.learning_path.graph import COMPLEMENTS, RECOMMENDS, REQUIRES, PrerequisiteGraph
 from src.learning_path.recommender import PathRecommender
 from src.learning_path.spaced_repetition import SpacedRepetitionScheduler
 
@@ -92,6 +92,58 @@ class TestPrerequisiteGraph:
         assert "algebra" in gap_ids
         # arithmetic is above threshold, should not appear
         assert "arithmetic" not in gap_ids
+
+    def test_relationship_types(self):
+        """Test that different edge types are stored correctly."""
+        graph = PrerequisiteGraph()
+        graph.add_topic("a", "math", "Topic A")
+        graph.add_topic("b", "math", "Topic B")
+        graph.add_topic("c", "math", "Topic C")
+        graph.add_prerequisite("a", "b", relationship=REQUIRES)
+        graph.add_prerequisite("c", "b", relationship=RECOMMENDS)
+
+        assert graph.get_edge_relationship("a", "b") == REQUIRES
+        assert graph.get_edge_relationship("c", "b") == RECOMMENDS
+
+    def test_find_gaps_ignores_soft_edges_by_default(self):
+        """find_gaps should only follow 'requires' edges by default."""
+        graph = PrerequisiteGraph()
+        graph.add_topic("basics", "cs", "Basics", "easy", 20)
+        graph.add_topic("advanced", "cs", "Advanced", "hard", 40)
+        graph.add_topic("optional", "cs", "Optional", "medium", 25)
+
+        graph.add_prerequisite("basics", "advanced", relationship=REQUIRES)
+        graph.add_prerequisite("optional", "advanced", relationship=RECOMMENDS)
+
+        student_mastery = {"basics": 10.0, "optional": 10.0, "advanced": 0.0}
+        gaps = graph.find_gaps(student_mastery, ["advanced"], threshold=50.0)
+        gap_ids = [g["topic_id"] for g in gaps]
+        assert "basics" in gap_ids
+        assert "optional" not in gap_ids  # soft edge excluded
+
+    def test_find_gaps_includes_soft_edges_when_requested(self):
+        """find_gaps with include_soft=True should include recommends edges."""
+        graph = PrerequisiteGraph()
+        graph.add_topic("basics", "cs", "Basics", "easy", 20)
+        graph.add_topic("advanced", "cs", "Advanced", "hard", 40)
+        graph.add_topic("optional", "cs", "Optional", "medium", 25)
+
+        graph.add_prerequisite("basics", "advanced", relationship=REQUIRES)
+        graph.add_prerequisite("optional", "advanced", relationship=RECOMMENDS)
+
+        student_mastery = {"basics": 10.0, "optional": 10.0, "advanced": 0.0}
+        gaps = graph.find_gaps(student_mastery, ["advanced"], threshold=50.0, include_soft=True)
+        gap_ids = [g["topic_id"] for g in gaps]
+        assert "basics" in gap_ids
+        assert "optional" in gap_ids
+
+    def test_complements_relationship(self):
+        """Complements edges should be stored and retrievable."""
+        graph = PrerequisiteGraph()
+        graph.add_topic("a", "math", "A")
+        graph.add_topic("b", "math", "B")
+        graph.add_prerequisite("a", "b", relationship=COMPLEMENTS)
+        assert graph.get_edge_relationship("a", "b") == COMPLEMENTS
 
 
 class TestPathRecommender:

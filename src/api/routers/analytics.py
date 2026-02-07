@@ -1,10 +1,12 @@
-"""Analytics dashboard endpoints."""
+"""Analytics dashboard endpoints for students and teachers."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.analytics.aggregator import DataAggregator
+from src.analytics.alerts import AlertEngine
 from src.api.dependencies import get_current_user, get_db
+from src.auth.rbac import Role, require_role
 from src.models.database import async_session
 from src.models.user import User
 
@@ -15,8 +17,10 @@ def _get_aggregator() -> DataAggregator:
     return DataAggregator(db_session_factory=async_session)
 
 
-@router.get("/analytics/summary")
-async def get_summary(
+# ── Student endpoints ──────────────────────────────────────────────────────
+
+@router.get("/analytics/student/summary")
+async def get_student_summary(
     current_user: User = Depends(get_current_user),
     aggregator: DataAggregator = Depends(_get_aggregator),
 ):
@@ -25,8 +29,8 @@ async def get_summary(
     return {"success": True, "data": summary}
 
 
-@router.get("/analytics/mastery")
-async def get_mastery(
+@router.get("/analytics/student/mastery")
+async def get_student_mastery(
     current_user: User = Depends(get_current_user),
     aggregator: DataAggregator = Depends(_get_aggregator),
 ):
@@ -35,8 +39,8 @@ async def get_mastery(
     return {"success": True, "data": mastery}
 
 
-@router.get("/analytics/activity")
-async def get_activity(
+@router.get("/analytics/student/activity")
+async def get_student_activity(
     days: int = 30,
     current_user: User = Depends(get_current_user),
     aggregator: DataAggregator = Depends(_get_aggregator),
@@ -46,8 +50,8 @@ async def get_activity(
     return {"success": True, "data": heatmap}
 
 
-@router.get("/analytics/streaks")
-async def get_streaks(
+@router.get("/analytics/student/streaks")
+async def get_student_streaks(
     current_user: User = Depends(get_current_user),
     aggregator: DataAggregator = Depends(_get_aggregator),
 ):
@@ -60,3 +64,38 @@ async def get_streaks(
             "active_days": summary.get("active_days", 0),
         },
     }
+
+
+# ── Teacher endpoints ──────────────────────────────────────────────────────
+
+@router.get("/analytics/teacher/class/{class_id}/overview")
+async def get_class_overview(
+    class_id: str,
+    current_user: User = Depends(require_role(Role.teacher, Role.admin)),
+    aggregator: DataAggregator = Depends(_get_aggregator),
+):
+    """Get class-level summary: average mastery, engagement, at-risk count."""
+    overview = await aggregator.get_class_overview(class_id)
+    return {"success": True, "data": overview}
+
+
+@router.get("/analytics/teacher/class/{class_id}/students")
+async def get_class_students(
+    class_id: str,
+    current_user: User = Depends(require_role(Role.teacher, Role.admin)),
+    aggregator: DataAggregator = Depends(_get_aggregator),
+):
+    """Get per-student metrics for a class."""
+    students = await aggregator.get_class_students(class_id)
+    return {"success": True, "data": students}
+
+
+@router.get("/analytics/teacher/class/{class_id}/at-risk")
+async def get_class_at_risk(
+    class_id: str,
+    current_user: User = Depends(require_role(Role.teacher, Role.admin)),
+    aggregator: DataAggregator = Depends(_get_aggregator),
+):
+    """Get at-risk students in a class with intervention suggestions."""
+    at_risk = await aggregator.get_class_at_risk(class_id)
+    return {"success": True, "data": at_risk}
