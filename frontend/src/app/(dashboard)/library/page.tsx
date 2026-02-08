@@ -100,6 +100,7 @@ export default function LibraryPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchSubject, setSearchSubject] = useState("");
   const [searchLimit, setSearchLimit] = useState(10);
+  const [jumpInput, setJumpInput] = useState("");
 
   // Scrollable tab bar refs
   const tabBarRef = useRef<HTMLDivElement>(null);
@@ -340,24 +341,107 @@ export default function LibraryPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 mt-6">
-                <button
-                  onClick={() => goToPage(page - 1)}
-                  disabled={page <= 1}
-                  className="p-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-sm text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  onClick={() => goToPage(page + 1)}
-                  disabled={page >= totalPages}
-                  className="p-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+              <div className="flex flex-col items-center gap-3 mt-6">
+                <div className="flex items-center gap-1.5">
+                  {/* Prev */}
+                  <button
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page <= 1}
+                    className="p-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  {/* Page numbers */}
+                  {(() => {
+                    const pages: (number | "...")[] = [];
+                    if (totalPages <= 7) {
+                      for (let i = 1; i <= totalPages; i++) pages.push(i);
+                    } else {
+                      pages.push(1);
+                      if (page > 3) pages.push("...");
+                      const start = Math.max(2, page - 1);
+                      const end = Math.min(totalPages - 1, page + 1);
+                      for (let i = start; i <= end; i++) pages.push(i);
+                      if (page < totalPages - 2) pages.push("...");
+                      pages.push(totalPages);
+                    }
+                    return pages.map((p, idx) =>
+                      p === "..." ? (
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-2 text-gray-500 text-sm"
+                        >
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => goToPage(p)}
+                          className={`min-w-[36px] h-9 text-sm font-medium rounded-lg transition-colors ${
+                            p === page
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    );
+                  })()}
+
+                  {/* Next */}
+                  <button
+                    onClick={() => goToPage(page + 1)}
+                    disabled={page >= totalPages}
+                    className="p-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Jump to page */}
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <span>Go to page</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={jumpInput}
+                    onChange={(e) => setJumpInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const p = parseInt(jumpInput, 10);
+                        if (p >= 1 && p <= totalPages) {
+                          goToPage(p);
+                          setJumpInput("");
+                        }
+                      }
+                    }}
+                    placeholder={`1-${totalPages}`}
+                    className="w-20 px-2 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-200 text-center placeholder-gray-600 focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const p = parseInt(jumpInput, 10);
+                      if (p >= 1 && p <= totalPages) {
+                        goToPage(p);
+                        setJumpInput("");
+                      }
+                    }}
+                    disabled={
+                      !jumpInput ||
+                      parseInt(jumpInput, 10) < 1 ||
+                      parseInt(jumpInput, 10) > totalPages
+                    }
+                    className="px-3 py-1.5 bg-gray-800 text-gray-300 text-sm rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Go
+                  </button>
+                  <span className="text-gray-600 ml-1">
+                    of {totalPages} pages ({total} docs)
+                  </span>
+                </div>
               </div>
             )}
           </>
