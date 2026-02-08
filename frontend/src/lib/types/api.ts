@@ -258,3 +258,24 @@ export interface GradeResult {
   feedback: string;
   correct: boolean;
 }
+
+// Upload types
+export interface UploadFileResponse {
+  document_id: string;
+  status: string;
+  chunk_count: number;
+  filename: string;
+}
+
+export interface UploadUrlRequest {
+  url: string;
+  title?: string;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface UploadUrlResponse {
+  document_id: string;
+  status: string;
+  chunk_count: number;
+}

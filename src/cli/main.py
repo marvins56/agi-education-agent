@@ -2,7 +2,7 @@
 
 import typer
 
-from src.cli import auth, chat, models
+from src.cli import auth, chat, docs, models
 
 app = typer.Typer(
     name="eduagi",
@@ -19,6 +19,9 @@ app.command("chat")(chat.start)
 
 # Register models as a sub-group
 app.add_typer(models.app, name="models")
+
+# Register docs as a sub-group
+app.add_typer(docs.app, name="docs")
 
 
 if __name__ == "__main__":

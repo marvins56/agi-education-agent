@@ -5,6 +5,9 @@ import * as libraryApi from "@/lib/api/library";
 import type {
   DocumentItem,
   SearchResultItem,
+  UploadFileResponse,
+  UploadUrlRequest,
+  UploadUrlResponse,
 } from "@/lib/types/api";
 
 export function useLibrary() {
@@ -19,6 +22,9 @@ export function useLibrary() {
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
+
+  // Upload state
+  const [uploading, setUploading] = useState(false);
 
   const fetchDocuments = useCallback(
     async (p = page) => {
@@ -44,24 +50,27 @@ export function useLibrary() {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  const search = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      setSearchQuery("");
-      return;
-    }
-    setSearching(true);
-    setError(null);
-    setSearchQuery(query);
-    try {
-      const res = await libraryApi.searchContent(query);
-      setSearchResults(res.results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Search failed");
-    } finally {
-      setSearching(false);
-    }
-  }, []);
+  const search = useCallback(
+    async (query: string, subject?: string, limit?: number) => {
+      if (!query.trim()) {
+        setSearchResults([]);
+        setSearchQuery("");
+        return;
+      }
+      setSearching(true);
+      setError(null);
+      setSearchQuery(query);
+      try {
+        const res = await libraryApi.searchContent(query, subject, limit);
+        setSearchResults(res.results);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Search failed");
+      } finally {
+        setSearching(false);
+      }
+    },
+    []
+  );
 
   const clearSearch = useCallback(() => {
     setSearchResults([]);
@@ -89,6 +98,49 @@ export function useLibrary() {
     [fetchDocuments]
   );
 
+  const uploadFile = useCallback(
+    async (
+      file: File,
+      options?: { title?: string; subject?: string; grade_level?: string }
+    ): Promise<UploadFileResponse> => {
+      setUploading(true);
+      setError(null);
+      try {
+        const res = await libraryApi.uploadFile(file, options);
+        await fetchDocuments(1);
+        return res;
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "Upload failed";
+        setError(msg);
+        throw err;
+      } finally {
+        setUploading(false);
+      }
+    },
+    [fetchDocuments]
+  );
+
+  const uploadUrl = useCallback(
+    async (data: UploadUrlRequest): Promise<UploadUrlResponse> => {
+      setUploading(true);
+      setError(null);
+      try {
+        const res = await libraryApi.uploadUrl(data);
+        await fetchDocuments(1);
+        return res;
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "URL ingestion failed";
+        setError(msg);
+        throw err;
+      } finally {
+        setUploading(false);
+      }
+    },
+    [fetchDocuments]
+  );
+
   const totalPages = Math.ceil(total / pageSize);
 
   return {
@@ -106,5 +158,8 @@ export function useLibrary() {
     goToPage,
     deleteDocument,
     refresh: fetchDocuments,
+    uploadFile,
+    uploadUrl,
+    uploading,
   };
 }

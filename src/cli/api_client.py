@@ -104,3 +104,6 @@ class CLIClient:
 
     def post(self, path: str, *, json: dict | None = None, authenticated: bool = True) -> httpx.Response:
         return self._request("POST", path, json=json, authenticated=authenticated)
+
+    def delete(self, path: str, *, authenticated: bool = True) -> httpx.Response:
+        return self._request("DELETE", path, authenticated=authenticated)
