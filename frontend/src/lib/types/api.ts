@@ -279,3 +279,67 @@ export interface UploadUrlResponse {
   status: string;
   chunk_count: number;
 }
+
+// Source ingestion types
+export interface IngestYouTubeRequest {
+  video_id: string;
+  title?: string;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestWikipediaRequest {
+  query: string;
+  lang?: string;
+  title?: string;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestArxivRequest {
+  query: string;
+  max_results?: number;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestPubMedRequest {
+  query: string;
+  max_results?: number;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestGutenbergRequest {
+  query: string;
+  max_results?: number;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestGitHubRequest {
+  repo: string;
+  file_path?: string;
+  branch?: string;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestCrawlRequest {
+  url: string;
+  max_depth?: number;
+  max_pages?: number;
+  subject?: string;
+  grade_level?: string;
+}
+
+export interface IngestResult {
+  document_id: string;
+  status: string;
+  chunk_count: number;
+  title: string;
+}
+
+export interface IngestMultiResult {
+  documents: IngestResult[];
+}

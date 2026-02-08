@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLibrary } from "@/hooks/useLibrary";
 import { UploadZone } from "@/components/library/UploadZone";
 import { UrlIngestForm } from "@/components/library/UrlIngestForm";
 import { DocumentCard } from "@/components/library/DocumentCard";
 import { SearchResults } from "@/components/library/SearchResults";
+import {
+  YouTubeForm,
+  WikipediaForm,
+  ArxivForm,
+  PubMedForm,
+  GutenbergForm,
+  GitHubForm,
+  CrawlForm,
+} from "@/components/library/SourceForms";
 import {
   Search,
   Upload,
@@ -13,10 +22,58 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Video,
+  GraduationCap,
+  Microscope,
+  Library,
+  Github,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
-type UploadTab = "file" | "url";
+type UploadTab =
+  | "file"
+  | "url"
+  | "youtube"
+  | "wikipedia"
+  | "arxiv"
+  | "pubmed"
+  | "gutenberg"
+  | "github"
+  | "crawl";
+
+interface TabDef {
+  id: UploadTab;
+  label: string;
+  icon: React.ReactNode;
+}
+
+const TABS: TabDef[] = [
+  { id: "file", label: "Upload File", icon: <Upload className="h-4 w-4" /> },
+  { id: "url", label: "Ingest URL", icon: <Globe className="h-4 w-4" /> },
+  { id: "youtube", label: "YouTube", icon: <Video className="h-4 w-4" /> },
+  {
+    id: "wikipedia",
+    label: "Wikipedia",
+    icon: <BookOpen className="h-4 w-4" />,
+  },
+  {
+    id: "arxiv",
+    label: "ArXiv",
+    icon: <GraduationCap className="h-4 w-4" />,
+  },
+  {
+    id: "pubmed",
+    label: "PubMed",
+    icon: <Microscope className="h-4 w-4" />,
+  },
+  {
+    id: "gutenberg",
+    label: "Gutenberg",
+    icon: <Library className="h-4 w-4" />,
+  },
+  { id: "github", label: "GitHub", icon: <Github className="h-4 w-4" /> },
+  { id: "crawl", label: "Web Crawl", icon: <Globe className="h-4 w-4" /> },
+];
 
 export default function LibraryPage() {
   const {
@@ -36,12 +93,44 @@ export default function LibraryPage() {
     uploadFile,
     uploadUrl,
     uploading,
+    refresh,
   } = useLibrary();
 
   const [uploadTab, setUploadTab] = useState<UploadTab>("file");
   const [searchInput, setSearchInput] = useState("");
   const [searchSubject, setSearchSubject] = useState("");
   const [searchLimit, setSearchLimit] = useState(10);
+
+  // Scrollable tab bar refs
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = () => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+
+  useEffect(() => {
+    updateScrollState();
+    const el = tabBarRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateScrollState);
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      ro.disconnect();
+    };
+  }, []);
+
+  const scrollTabs = (dir: "left" | "right") => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -160 : 160, behavior: "smooth" });
+  };
 
   const handleSearch = () => {
     search(searchInput, searchSubject || undefined, searchLimit);
@@ -55,6 +144,33 @@ export default function LibraryPage() {
     clearSearch();
     setSearchInput("");
     setSearchSubject("");
+  };
+
+  const handleSourceSuccess = () => {
+    refresh(1);
+  };
+
+  const renderTabContent = () => {
+    switch (uploadTab) {
+      case "file":
+        return <UploadZone onUpload={uploadFile} uploading={uploading} />;
+      case "url":
+        return <UrlIngestForm onIngest={uploadUrl} uploading={uploading} />;
+      case "youtube":
+        return <YouTubeForm onSuccess={handleSourceSuccess} />;
+      case "wikipedia":
+        return <WikipediaForm onSuccess={handleSourceSuccess} />;
+      case "arxiv":
+        return <ArxivForm onSuccess={handleSourceSuccess} />;
+      case "pubmed":
+        return <PubMedForm onSuccess={handleSourceSuccess} />;
+      case "gutenberg":
+        return <GutenbergForm onSuccess={handleSourceSuccess} />;
+      case "github":
+        return <GitHubForm onSuccess={handleSourceSuccess} />;
+      case "crawl":
+        return <CrawlForm onSuccess={handleSourceSuccess} />;
+    }
   };
 
   return (
@@ -82,40 +198,50 @@ export default function LibraryPage() {
           Add Content
         </h2>
         <div className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b border-gray-800">
-            <button
-              onClick={() => setUploadTab("file")}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
-                uploadTab === "file"
-                  ? "text-blue-400 border-b-2 border-blue-500 bg-gray-900/50"
-                  : "text-gray-400 hover:text-gray-300"
-              }`}
+          {/* Scrollable tab bar */}
+          <div className="relative border-b border-gray-800">
+            {canScrollLeft && (
+              <button
+                onClick={() => scrollTabs("left")}
+                className="absolute left-0 top-0 bottom-0 z-10 px-1.5 bg-gradient-to-r from-gray-950 via-gray-950 to-transparent text-gray-400 hover:text-gray-200 transition-colors"
+                aria-label="Scroll tabs left"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+            <div
+              ref={tabBarRef}
+              className="flex overflow-x-auto scrollbar-hide"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
-              <Upload className="h-4 w-4" />
-              Upload File
-            </button>
-            <button
-              onClick={() => setUploadTab("url")}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
-                uploadTab === "url"
-                  ? "text-blue-400 border-b-2 border-blue-500 bg-gray-900/50"
-                  : "text-gray-400 hover:text-gray-300"
-              }`}
-            >
-              <Globe className="h-4 w-4" />
-              Ingest URL
-            </button>
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setUploadTab(tab.id)}
+                  className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                    uploadTab === tab.id
+                      ? "text-blue-400 border-b-2 border-blue-500 bg-gray-900/50"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {canScrollRight && (
+              <button
+                onClick={() => scrollTabs("right")}
+                className="absolute right-0 top-0 bottom-0 z-10 px-1.5 bg-gradient-to-l from-gray-950 via-gray-950 to-transparent text-gray-400 hover:text-gray-200 transition-colors"
+                aria-label="Scroll tabs right"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* Tab content */}
-          <div className="p-5">
-            {uploadTab === "file" ? (
-              <UploadZone onUpload={uploadFile} uploading={uploading} />
-            ) : (
-              <UrlIngestForm onIngest={uploadUrl} uploading={uploading} />
-            )}
-          </div>
+          <div className="p-5">{renderTabContent()}</div>
         </div>
       </section>
 
@@ -157,7 +283,11 @@ export default function LibraryPage() {
             disabled={searching || !searchInput.trim()}
             className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            {searching ? <Spinner size="sm" /> : <Search className="h-4 w-4" />}
+            {searching ? (
+              <Spinner size="sm" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
             Search
           </button>
         </div>

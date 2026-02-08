@@ -115,7 +115,7 @@ def search_docs(
 
 @app.command("upload")
 def upload_file(
-    filepath: str = typer.Argument(..., help="Path to file (PDF, DOCX, TXT, MD)"),
+    filepath: str = typer.Argument(..., help="Path to file (PDF, DOCX, PPTX, XLSX, CSV, EPUB, HTML, TXT, MD)"),
     title: Optional[str] = typer.Option(None, "--title", "-t", help="Document title"),
     subject: Optional[str] = typer.Option(None, "--subject", "-s", help="Subject area"),
     grade_level: Optional[str] = typer.Option(None, "--grade-level", "-g", help="Grade level"),

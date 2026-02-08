@@ -56,7 +56,7 @@ app = FastAPI(
 )
 
 # Import and include routers
-from src.api.routers import auth, chat, content, health, models, profile, sessions, analytics, learning_path, assessments  # noqa: E402
+from src.api.routers import auth, chat, content, health, models, profile, sessions, analytics, learning_path, assessments, sources  # noqa: E402
 from src.api.middleware.request_id import RequestIDMiddleware  # noqa: E402
 from src.api.middleware.rate_limit import RateLimiter, RateLimitMiddleware  # noqa: E402
 
@@ -87,3 +87,4 @@ app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(learning_path.router, prefix="/api/v1", tags=["Learning Path"])
 app.include_router(assessments.router, prefix="/api/v1/assessments", tags=["Assessments"])
 app.include_router(models.router, prefix="/api/v1", tags=["Models"])
+app.include_router(sources.router, prefix="/api/v1/content", tags=["Sources"])

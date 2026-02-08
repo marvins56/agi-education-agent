@@ -10,10 +10,16 @@ const ACCEPTED_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/plain",
   "text/markdown",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+  "application/epub+zip",
+  "text/html",
 ];
 
-const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
-const MAX_SIZE_MB = 50;
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".pptx", ".xlsx", ".xls", ".csv", ".epub", ".html", ".htm"];
+const MAX_SIZE_MB = 500;
 
 interface UploadZoneProps {
   onUpload: (
@@ -136,7 +142,7 @@ export function UploadZone({ onUpload, uploading }: UploadZoneProps) {
           Drag & drop a file here, or click to browse
         </p>
         <div className="flex items-center justify-center gap-2 mt-2">
-          {["PDF", "DOCX", "TXT", "MD"].map((fmt) => (
+          {["PDF", "DOCX", "PPTX", "XLSX", "CSV", "EPUB", "HTML", "TXT", "MD"].map((fmt) => (
             <span
               key={fmt}
               className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700"

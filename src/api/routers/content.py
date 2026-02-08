@@ -24,16 +24,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "uploads")
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".pptx", ".xlsx", ".xls", ".csv", ".epub", ".html", ".htm", ".json"}
 
 # Magic byte signatures for allowed file types
 _MAGIC_BYTES: dict[str, list[bytes]] = {
     ".pdf": [b"%PDF"],
     ".docx": [b"PK\x03\x04"],  # ZIP-based format
+    ".pptx": [b"PK\x03\x04"],
+    ".xlsx": [b"PK\x03\x04"],
+    ".epub": [b"PK\x03\x04"],
 }
-# .txt and .md have no magic bytes -- only check the binary types
+# .xls, .csv, .html, .htm, .txt, .md have no magic bytes -- text formats
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -104,7 +107,7 @@ async def upload_content(
     # Read file content and check size
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="File exceeds maximum size of 50MB")
+        raise HTTPException(status_code=400, detail="File exceeds maximum size of 500MB")
 
     # Validate magic bytes for binary file types
     expected_magic = _MAGIC_BYTES.get(ext)

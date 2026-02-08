@@ -1,5 +1,6 @@
 """Document processing pipeline: parse -> chunk -> enrich -> store."""
 
+import logging
 import os
 import uuid
 from typing import Any
@@ -7,16 +8,27 @@ from typing import Any
 from src.documents.chunker import SemanticChunker
 from src.documents.enricher import ContentEnricher
 from src.documents.parsers.docx import DocxParser
+from src.documents.parsers.epub import EpubParser
+from src.documents.parsers.html_parser import HtmlFileParser
 from src.documents.parsers.pdf import PdfParser
+from src.documents.parsers.pptx import PptxParser
 from src.documents.parsers.text import TextParser
 from src.documents.parsers.web import WebParser
+from src.documents.parsers.xlsx import SpreadsheetParser
+from src.documents.loaders.json_loader import JSONFileLoader
 from src.rag.retriever import KnowledgeRetriever
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentProcessor:
     """Orchestrate the full document processing pipeline."""
 
-    SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+    SUPPORTED_EXTENSIONS = {
+        ".pdf", ".docx", ".txt", ".md",
+        ".pptx", ".xlsx", ".xls", ".csv",
+        ".epub", ".html", ".htm", ".json",
+    }
 
     def __init__(
         self,
@@ -31,6 +43,11 @@ class DocumentProcessor:
         self._docx_parser = DocxParser()
         self._text_parser = TextParser()
         self._web_parser = WebParser()
+        self._pptx_parser = PptxParser()
+        self._spreadsheet_parser = SpreadsheetParser()
+        self._epub_parser = EpubParser()
+        self._html_parser = HtmlFileParser()
+        self._json_parser = JSONFileLoader()
 
     async def process_file(self, file_path: str, metadata: dict[str, Any] | None = None) -> dict:
         """Parse, chunk, enrich, and store a file. Returns processing result."""
@@ -95,6 +112,16 @@ class DocumentProcessor:
             return self._docx_parser
         elif ext in (".txt", ".md"):
             return self._text_parser
+        elif ext == ".pptx":
+            return self._pptx_parser
+        elif ext in (".xlsx", ".xls", ".csv"):
+            return self._spreadsheet_parser
+        elif ext == ".epub":
+            return self._epub_parser
+        elif ext in (".html", ".htm"):
+            return self._html_parser
+        elif ext == ".json":
+            return self._json_parser
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
