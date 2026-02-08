@@ -1,7 +1,7 @@
 """Source loader endpoints for ingesting content from external sources."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -129,7 +129,7 @@ async def _ingest_single(
         result = await processor._process_text(text, meta)
         doc.chunk_count = result["chunk_count"]
         doc.status = "completed"
-        doc.processed_at = datetime.now(timezone.utc)
+        doc.processed_at = datetime.utcnow()
         doc.metadata_ = result.get("metadata", {})
     except Exception as exc:
         logger.error("Ingest failed for %s '%s': %s", source_type, title, exc)
