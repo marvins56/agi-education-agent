@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     CHROMA_PORT: int = 8100
 
     # AI/LLM
+    LLM_PROVIDER: str = "ollama"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:3b"
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     DEFAULT_MODEL: str = "claude-sonnet-4-5-20250929"

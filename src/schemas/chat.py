@@ -10,6 +10,8 @@ class MessageRequest(BaseModel):
     session_id: str
     subject: str | None = None
     topic: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
 
 class MessageResponse(BaseModel):

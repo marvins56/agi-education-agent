@@ -6,23 +6,18 @@ import json
 import re
 from typing import Any
 
-from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.config import settings
+from src.llm.factory import LLMFactory
 
 
 class QuestionGenerator:
     """Generate assessment questions using an LLM."""
 
-    def __init__(self, llm: ChatAnthropic | None = None):
+    def __init__(self, llm: BaseChatModel | None = None):
         if llm is None:
-            self.llm = ChatAnthropic(
-                model=settings.DEFAULT_MODEL,
-                temperature=0.7,
-                max_tokens=4096,
-                anthropic_api_key=settings.ANTHROPIC_API_KEY,
-            )
+            self.llm = LLMFactory.create()
         else:
             self.llm = llm
 

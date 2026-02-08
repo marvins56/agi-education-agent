@@ -6,6 +6,7 @@ import redis.asyncio as aioredis
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.orchestrator import MasterOrchestrator
@@ -95,7 +96,9 @@ async def get_current_user(
         except Exception:
             pass  # Redis down -- fail open for availability
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User).where(User.id == user_id).options(selectinload(User.profile))
+    )
     user = result.scalars().first()
 
     if user is None:

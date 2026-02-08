@@ -58,11 +58,9 @@ class BaseAgent(ABC):
 
     def _initialize_llm(self):
         """Initialize the LLM with configuration."""
-        from langchain_anthropic import ChatAnthropic
+        from src.llm.factory import LLMFactory
 
-        return ChatAnthropic(
-            model=self.config.model,
+        return LLMFactory.create(
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
-            anthropic_api_key=settings.ANTHROPIC_API_KEY,
         )

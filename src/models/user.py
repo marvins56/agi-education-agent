@@ -19,7 +19,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    last_login = Column(DateTime, nullable=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
     login_count = Column(Integer, default=0)
     is_verified = Column(Boolean, default=False)
 

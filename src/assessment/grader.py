@@ -10,24 +10,19 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.assessment.schemas import GradeResult
-from src.config import settings
+from src.llm.factory import LLMFactory
 
 
 class AutoGrader:
     """Grade student submissions using type-specific strategies."""
 
-    def __init__(self, llm: ChatAnthropic | None = None):
+    def __init__(self, llm: BaseChatModel | None = None):
         if llm is None:
-            self.llm = ChatAnthropic(
-                model=settings.DEFAULT_MODEL,
-                temperature=0.0,
-                max_tokens=2048,
-                anthropic_api_key=settings.ANTHROPIC_API_KEY,
-            )
+            self.llm = LLMFactory.create(temperature=0.0, max_tokens=2048)
         else:
             self.llm = llm
 

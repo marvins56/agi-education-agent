@@ -119,8 +119,25 @@ async def send_message(
         learning_objectives=context_data.get("learning_objectives", []),
     )
 
+    # Per-request LLM override: swap orchestrator's tutor LLM if requested
+    _original_llm = None
+    if body.provider or body.model:
+        from src.llm.factory import LLMFactory
+
+        tutor = orchestrator.agents.get("tutor")
+        if tutor:
+            _original_llm = tutor.llm
+            tutor.llm = LLMFactory.create(
+                provider=body.provider,
+                model=body.model,
+            )
+
     # Process message through orchestrator
     response = await orchestrator.process(body.content, agent_context)
+
+    # Restore original LLM after request
+    if _original_llm is not None:
+        orchestrator.agents["tutor"].llm = _original_llm
 
     # Save messages to conversation history
     await memory.add_to_conversation(body.session_id, "user", body.content)
