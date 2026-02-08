@@ -42,6 +42,24 @@ class KnowledgeRetriever:
             metadata={"hnsw:space": "cosine"},
         )
 
+    def _get_collection(self):
+        """Get collection, re-creating if the reference is stale."""
+        if self._collection is None and self._client is not None:
+            self._collection = self._client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
+        try:
+            self._collection.count()
+        except Exception:
+            if self._client is not None:
+                logger.info("Re-creating ChromaDB collection reference (stale)")
+                self._collection = self._client.get_or_create_collection(
+                    name=self.collection_name,
+                    metadata={"hnsw:space": "cosine"},
+                )
+        return self._collection
+
     def ingest_document(self, text: str, metadata: dict[str, Any] | None = None) -> int:
         """Split text into chunks and add to collection. Returns number of chunks."""
         chunks = self.text_splitter.split_text(text)
@@ -51,7 +69,8 @@ class KnowledgeRetriever:
         ids = [f"chunk_{hash(c)}_{i}" for i, c in enumerate(chunks)]
         metadatas = [metadata or {} for _ in chunks]
 
-        self._collection.add(
+        collection = self._get_collection()
+        collection.add(
             documents=chunks,
             metadatas=metadatas,
             ids=ids,
@@ -75,7 +94,8 @@ class KnowledgeRetriever:
         rewrite: bool = True,
     ) -> dict[str, Any]:
         """Retrieve relevant knowledge for a query with optional rewriting and re-ranking."""
-        if not self._collection:
+        collection = self._get_collection()
+        if collection is None:
             return {"context": "", "sources": [], "num_results": 0}
 
         # Query rewriting
@@ -93,7 +113,7 @@ class KnowledgeRetriever:
             where_filter.update(filters)
 
         try:
-            results = self._collection.query(
+            results = collection.query(
                 query_texts=[search_query],
                 n_results=k,
                 where=where_filter if where_filter else None,
@@ -148,10 +168,11 @@ class KnowledgeRetriever:
 
     def delete_document_chunks(self, document_id: str) -> None:
         """Delete all chunks for a given document_id from the collection."""
-        if not self._collection:
+        collection = self._get_collection()
+        if collection is None:
             return
         try:
-            self._collection.delete(where={"document_id": document_id})
+            collection.delete(where={"document_id": document_id})
         except Exception:
             logger.warning("Failed to delete chunks for document %s from ChromaDB", document_id, exc_info=True)
 

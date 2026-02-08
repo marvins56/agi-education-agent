@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -361,4 +362,111 @@ async def search_content(
         "query": q,
         "results": results,
         "total": rag_results.get("num_results", 0),
+    }
+
+
+@router.get("/rag-test")
+async def rag_test(
+    q: str = Query("", description="Search query"),
+    subject: str | None = Query(None),
+    limit: int = Query(5, ge=1, le=20),
+    user: User = Depends(get_current_user),
+    retriever: KnowledgeRetriever = Depends(get_retriever),
+):
+    """RAG debug endpoint — returns full chunk content, timing, and metadata."""
+    if not q.strip():
+        return {"query": q, "chunks": [], "timing": {}, "stats": {}}
+
+    collection = retriever._get_collection()
+    total_chunks = collection.count() if collection else 0
+
+    # Step 1: Query rewriting
+    t0 = time.perf_counter()
+    context = {}
+    if subject:
+        context["subject"] = subject
+    rewritten = await retriever._rewriter.rewrite(q, context)
+    t_rewrite = time.perf_counter() - t0
+
+    # Step 2: ChromaDB vector search
+    t1 = time.perf_counter()
+    where_filter = {}
+    if subject:
+        where_filter["subject"] = subject
+
+    raw_results = None
+    if collection:
+        try:
+            raw_results = collection.query(
+                query_texts=[rewritten],
+                n_results=limit,
+                where=where_filter if where_filter else None,
+            )
+        except Exception as exc:
+            return {"query": q, "error": str(exc), "chunks": [], "timing": {}, "stats": {}}
+    t_search = time.perf_counter() - t1
+
+    if not raw_results or not raw_results.get("documents") or not raw_results["documents"][0]:
+        return {
+            "query": q,
+            "rewritten_query": rewritten,
+            "chunks": [],
+            "timing": {
+                "rewrite_ms": round(t_rewrite * 1000, 2),
+                "search_ms": round(t_search * 1000, 2),
+                "total_ms": round((t_rewrite + t_search) * 1000, 2),
+            },
+            "stats": {"total_chunks_in_db": total_chunks, "results_found": 0},
+        }
+
+    documents = raw_results["documents"][0]
+    metadatas = raw_results["metadatas"][0] if raw_results.get("metadatas") else [{}] * len(documents)
+    distances = raw_results["distances"][0] if raw_results.get("distances") else [0.0] * len(documents)
+    ids = raw_results["ids"][0] if raw_results.get("ids") else [""] * len(documents)
+
+    # Step 3: Re-rank
+    t2 = time.perf_counter()
+    sources = [
+        {"content_preview": doc, "metadata": meta, "distance": dist}
+        for doc, meta, dist in zip(documents, metadatas, distances)
+    ]
+    ranked = retriever._ranker.rank(sources, q)
+    t_rank = time.perf_counter() - t2
+
+    total_time = t_rewrite + t_search + t_rank
+
+    chunks = []
+    for i, (src, chunk_id) in enumerate(zip(ranked, ids)):
+        meta = src.get("metadata", {})
+        chunks.append({
+            "rank": i + 1,
+            "chunk_id": chunk_id,
+            "content": src["content_preview"],
+            "distance": round(src.get("distance", 0.0), 4),
+            "relevance": round(1.0 - src.get("distance", 0.0), 4),
+            "metadata": {
+                "source_type": meta.get("source_type", ""),
+                "subject": meta.get("subject", ""),
+                "title": meta.get("title", ""),
+                "document_id": meta.get("document_id", ""),
+            },
+            "char_count": len(src["content_preview"]),
+        })
+
+    return {
+        "query": q,
+        "rewritten_query": rewritten,
+        "subject_filter": subject,
+        "chunks": chunks,
+        "timing": {
+            "rewrite_ms": round(t_rewrite * 1000, 2),
+            "search_ms": round(t_search * 1000, 2),
+            "rank_ms": round(t_rank * 1000, 2),
+            "total_ms": round(total_time * 1000, 2),
+        },
+        "stats": {
+            "total_chunks_in_db": total_chunks,
+            "results_found": len(chunks),
+            "limit": limit,
+        },
     }

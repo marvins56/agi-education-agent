@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   Route,
   LogOut,
+  FlaskConical,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/assessments", label: "Assessments", icon: ClipboardCheck },
   { href: "/learning-path", label: "Learning Path", icon: Route },
   { href: "/library", label: "Library", icon: BookOpen },
+  { href: "/rag-test", label: "RAG Test", icon: FlaskConical },
 ];
 
 export function Sidebar() {

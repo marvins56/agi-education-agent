@@ -84,18 +84,19 @@ class DocumentProcessor:
         chunks = self.chunker.chunk(text, enriched_meta)
 
         # Store in ChromaDB
-        if self.retriever and self.retriever._collection is not None:
-            ids = [f"{document_id}_chunk_{i}" for i in range(len(chunks))]
-            documents = [c["content"] for c in chunks]
-            metadatas = [c["metadata"] for c in chunks]
-            # Ensure metadata values are ChromaDB-compatible (str, int, float, bool)
-            clean_metadatas = [self._clean_metadata(m) for m in metadatas]
+        if self.retriever:
+            collection = self.retriever._get_collection()
+            if collection is not None:
+                ids = [f"{document_id}_chunk_{i}" for i in range(len(chunks))]
+                documents = [c["content"] for c in chunks]
+                metadatas = [c["metadata"] for c in chunks]
+                clean_metadatas = [self._clean_metadata(m) for m in metadatas]
 
-            self.retriever._collection.add(
-                documents=documents,
-                metadatas=clean_metadatas,
-                ids=ids,
-            )
+                collection.add(
+                    documents=documents,
+                    metadatas=clean_metadatas,
+                    ids=ids,
+                )
 
         return {
             "document_id": document_id,
