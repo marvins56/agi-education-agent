@@ -1,5 +1,6 @@
 """Content upload, document management, and search endpoints."""
 
+import json
 import logging
 import os
 import re
@@ -8,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +40,23 @@ _MAGIC_BYTES: dict[str, list[bytes]] = {
     ".epub": [b"PK\x03\x04"],
 }
 # .xls, .csv, .html, .htm, .txt, .md have no magic bytes -- text formats
+
+
+def _sse_event(step: str, progress: int, message: str, result: dict | None = None) -> str:
+    """Format a Server-Sent Event line."""
+    payload: dict = {"step": step, "progress": progress, "message": message}
+    if result is not None:
+        payload["result"] = result
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def _sse_response(generator):
+    """Wrap an async generator as an SSE StreamingResponse."""
+    return StreamingResponse(
+        generator,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -90,6 +109,7 @@ async def upload_content(
     title: str | None = Query(None),
     subject: str | None = Query(None),
     grade_level: str | None = Query(None),
+    stream: bool = Query(False),
     user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
     retriever: KnowledgeRetriever = Depends(get_retriever),
@@ -125,6 +145,77 @@ async def upload_content(
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     file_path = os.path.join(UPLOAD_DIR, unique_name)
 
+    if stream:
+        async def generate():
+            yield _sse_event("saving", 50, f"Saving file ({len(content) / (1024*1024):.1f}MB)...")
+            with open(file_path, "wb") as f:
+                f.write(content)
+
+            yield _sse_event("creating_record", 55, "Creating document record...")
+            doc = Document(
+                title=title or safe_name,
+                subject=subject,
+                grade_level=grade_level,
+                file_path=file_path,
+                original_filename=safe_name,
+                file_type=ext,
+                file_size=len(content),
+                status="processing",
+                uploaded_by=user.id,
+            )
+            db.add(doc)
+            await db.flush()
+
+            try:
+                yield _sse_event("parsing", 60, f"Parsing {ext} document...")
+                processor = DocumentProcessor()
+                parser = processor._detect_parser(file_path)
+                parsed = parser.parse_with_metadata(file_path)
+                text = parsed["text"]
+                file_meta = {"subject": subject or "", "grade_level": grade_level or "", "title": title or safe_name}
+                file_meta.update(parsed.get("metadata", {}))
+                file_meta["source"] = file_path
+                file_meta["file_type"] = ext
+
+                document_id = str(uuid.uuid4())
+                file_meta["document_id"] = document_id
+
+                yield _sse_event("enriching", 70, "Enriching metadata...")
+                enricher = ContentEnricher()
+                enriched_meta = await enricher.enrich(text, file_meta)
+
+                yield _sse_event("chunking", 80, "Creating semantic chunks...")
+                chunker = SemanticChunker()
+                chunks = chunker.chunk(text, enriched_meta)
+
+                yield _sse_event("storing", 90, f"Storing {len(chunks)} chunks in knowledge base...")
+                if retriever:
+                    collection = retriever._get_collection()
+                    if collection is not None:
+                        ids = [f"{document_id}_chunk_{i}" for i in range(len(chunks))]
+                        documents_list = [c["content"] for c in chunks]
+                        metadatas = [DocumentProcessor._clean_metadata(c["metadata"]) for c in chunks]
+                        collection.add(documents=documents_list, metadatas=metadatas, ids=ids)
+
+                doc.chunk_count = len(chunks)
+                doc.status = "completed"
+                doc.processed_at = datetime.now(timezone.utc)
+                doc.metadata_ = enriched_meta
+
+                yield _sse_event("complete", 100, f"Processed '{title or safe_name}' — {len(chunks)} chunks", {
+                    "document_id": str(doc.id),
+                    "status": "completed",
+                    "chunk_count": len(chunks),
+                    "filename": safe_name,
+                })
+            except Exception as exc:
+                doc.status = "failed"
+                doc.metadata_ = {"error": str(exc)}
+                yield _sse_event("error", 0, str(exc))
+
+        return _sse_response(generate())
+
+    # --- Non-streaming path (unchanged) ---
     with open(file_path, "wb") as f:
         f.write(content)
 
@@ -174,6 +265,7 @@ async def upload_content(
 @router.post("/upload-url")
 async def upload_url(
     body: UploadUrlRequest,
+    stream: bool = Query(False),
     user: User = Depends(require_role(Role.teacher, Role.admin)),
     db: AsyncSession = Depends(get_db),
     retriever: KnowledgeRetriever = Depends(get_retriever),
@@ -181,6 +273,73 @@ async def upload_url(
     """Process a URL and ingest its content into the knowledge base."""
     url_str = str(body.url)
 
+    if stream:
+        async def generate():
+            yield _sse_event("creating_record", 5, "Creating document record...")
+            doc = Document(
+                title=body.title or url_str,
+                subject=body.subject,
+                grade_level=body.grade_level,
+                original_filename=url_str,
+                file_type="url",
+                status="processing",
+                uploaded_by=user.id,
+            )
+            db.add(doc)
+            await db.flush()
+
+            try:
+                yield _sse_event("fetching", 10, f"Fetching {url_str}...")
+                from src.documents.parsers.web import WebParser
+                web_parser = WebParser()
+                text = await web_parser.parse_url(url_str)
+                yield _sse_event("fetched", 25, f"Fetched {len(text)} characters")
+
+                url_meta = {
+                    "subject": body.subject or "",
+                    "grade_level": body.grade_level or "",
+                    "title": body.title or url_str,
+                    "source": url_str,
+                    "file_type": "url",
+                }
+                document_id = str(uuid.uuid4())
+                url_meta["document_id"] = document_id
+
+                yield _sse_event("enriching", 40, "Enriching metadata...")
+                enricher = ContentEnricher()
+                enriched_meta = await enricher.enrich(text, url_meta)
+
+                yield _sse_event("chunking", 60, "Creating semantic chunks...")
+                chunker = SemanticChunker()
+                chunks = chunker.chunk(text, enriched_meta)
+
+                yield _sse_event("storing", 80, f"Storing {len(chunks)} chunks in knowledge base...")
+                if retriever:
+                    collection = retriever._get_collection()
+                    if collection is not None:
+                        ids = [f"{document_id}_chunk_{i}" for i in range(len(chunks))]
+                        documents_list = [c["content"] for c in chunks]
+                        metadatas = [DocumentProcessor._clean_metadata(c["metadata"]) for c in chunks]
+                        collection.add(documents=documents_list, metadatas=metadatas, ids=ids)
+
+                doc.chunk_count = len(chunks)
+                doc.status = "completed"
+                doc.processed_at = datetime.now(timezone.utc)
+                doc.metadata_ = enriched_meta
+
+                yield _sse_event("complete", 100, f"Ingested URL — {len(chunks)} chunks", {
+                    "document_id": str(doc.id),
+                    "status": "completed",
+                    "chunk_count": len(chunks),
+                })
+            except Exception as exc:
+                doc.status = "failed"
+                doc.metadata_ = {"error": str(exc)}
+                yield _sse_event("error", 0, str(exc))
+
+        return _sse_response(generate())
+
+    # --- Non-streaming path (unchanged) ---
     doc = Document(
         title=body.title or url_str,
         subject=body.subject,

@@ -154,9 +154,9 @@ export default function LibraryPage() {
   const renderTabContent = () => {
     switch (uploadTab) {
       case "file":
-        return <UploadZone onUpload={uploadFile} uploading={uploading} />;
+        return <UploadZone onSuccess={handleSourceSuccess} />;
       case "url":
-        return <UrlIngestForm onIngest={uploadUrl} uploading={uploading} />;
+        return <UrlIngestForm onSuccess={handleSourceSuccess} />;
       case "youtube":
         return <YouTubeForm onSuccess={handleSourceSuccess} />;
       case "wikipedia":
