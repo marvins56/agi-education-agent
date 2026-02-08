@@ -10,9 +10,10 @@ import {
   Github,
   Globe,
   CheckCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
-import * as sourcesApi from "@/lib/api/sources";
+import { useSSEIngest, type SSEProgress } from "@/hooks/useSSEIngest";
 import type {
   IngestResult,
   IngestMultiResult,
@@ -36,7 +37,8 @@ const submitBtnClass =
 
 function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-300 text-sm">
+    <div className="p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-300 text-sm flex items-center gap-2">
+      <AlertTriangle className="h-4 w-4 shrink-0" />
       {message}
     </div>
   );
@@ -47,7 +49,7 @@ function SingleSuccess({ result }: { result: IngestResult }) {
     <div className="p-3 rounded-lg bg-green-900/30 border border-green-700 text-green-300 text-sm flex items-center gap-2">
       <CheckCircle className="h-4 w-4 shrink-0" />
       <span>
-        Ingested &ldquo;{result.title}&rdquo; — {result.chunk_count} chunks
+        Ingested &ldquo;{result.title}&rdquo; &mdash; {result.chunk_count} chunks
         created
       </span>
     </div>
@@ -70,6 +72,37 @@ function MultiSuccess({ result }: { result: IngestMultiResult }) {
   );
 }
 
+function IngestionProgress({ progress }: { progress: SSEProgress }) {
+  const isComplete = progress.step === "complete";
+  const isError = progress.step === "error";
+  if (isComplete || isError) return null;
+
+  const barColor =
+    progress.step === "warning"
+      ? "bg-yellow-500"
+      : "bg-blue-500";
+
+  return (
+    <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 space-y-3">
+      <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ease-out ${barColor}`}
+          style={{ width: `${progress.progress}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+          <span className="text-sm text-gray-300">{progress.message}</span>
+        </div>
+        <span className="text-xs font-mono text-gray-500">
+          {progress.progress}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 1. YouTubeForm
 // ---------------------------------------------------------------------------
@@ -82,13 +115,11 @@ export function YouTubeForm({ onSuccess }: SourceFormProps) {
   const [videoInput, setVideoInput] = useState("");
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestResult>();
 
   function extractVideoId(input: string): string {
     const trimmed = input.trim();
-    // Handle full URLs
     try {
       const url = new URL(trimmed);
       if (url.hostname.includes("youtube.com")) {
@@ -106,25 +137,15 @@ export function YouTubeForm({ onSuccess }: SourceFormProps) {
   const handleSubmit = async () => {
     const videoId = extractVideoId(videoInput);
     if (!videoId) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestYouTube>[0] = {
-        video_id: videoId,
-      };
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestYouTube(data);
-      setResult(res);
+    const data: Record<string, unknown> = { video_id: videoId };
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/youtube", data);
+    if (res) {
       setVideoInput("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "YouTube ingestion failed");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -183,6 +204,7 @@ export function YouTubeForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <SingleSuccess result={result} />}
     </div>
@@ -209,34 +231,21 @@ export function WikipediaForm({ onSuccess }: SourceFormProps) {
   const [lang, setLang] = useState("en");
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestResult>();
 
   const handleSubmit = async () => {
     if (!query.trim()) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestWikipedia>[0] = {
-        query: query.trim(),
-      };
-      if (lang !== "en") data.lang = lang;
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestWikipedia(data);
-      setResult(res);
+    const data: Record<string, unknown> = { query: query.trim() };
+    if (lang !== "en") data.lang = lang;
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/wikipedia", data);
+    if (res) {
       setQuery("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Wikipedia ingestion failed"
-      );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -306,6 +315,7 @@ export function WikipediaForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <SingleSuccess result={result} />}
     </div>
@@ -321,32 +331,23 @@ export function ArxivForm({ onSuccess }: SourceFormProps) {
   const [maxResults, setMaxResults] = useState(5);
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestMultiResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestMultiResult>();
 
   const handleSubmit = async () => {
     if (!query.trim()) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestArxiv>[0] = {
-        query: query.trim(),
-        max_results: maxResults,
-      };
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestArxiv(data);
-      setResult(res);
+    const data: Record<string, unknown> = {
+      query: query.trim(),
+      max_results: maxResults,
+    };
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/arxiv", data);
+    if (res) {
       setQuery("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "ArXiv ingestion failed");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -421,6 +422,7 @@ export function ArxivForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <MultiSuccess result={result} />}
     </div>
@@ -436,32 +438,23 @@ export function PubMedForm({ onSuccess }: SourceFormProps) {
   const [maxResults, setMaxResults] = useState(5);
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestMultiResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestMultiResult>();
 
   const handleSubmit = async () => {
     if (!query.trim()) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestPubMed>[0] = {
-        query: query.trim(),
-        max_results: maxResults,
-      };
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestPubMed(data);
-      setResult(res);
+    const data: Record<string, unknown> = {
+      query: query.trim(),
+      max_results: maxResults,
+    };
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/pubmed", data);
+    if (res) {
       setQuery("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "PubMed ingestion failed");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -536,6 +529,7 @@ export function PubMedForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <MultiSuccess result={result} />}
     </div>
@@ -551,34 +545,23 @@ export function GutenbergForm({ onSuccess }: SourceFormProps) {
   const [maxResults, setMaxResults] = useState(5);
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestMultiResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestMultiResult>();
 
   const handleSubmit = async () => {
     if (!query.trim()) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestGutenberg>[0] = {
-        query: query.trim(),
-        max_results: maxResults,
-      };
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestGutenberg(data);
-      setResult(res);
+    const data: Record<string, unknown> = {
+      query: query.trim(),
+      max_results: maxResults,
+    };
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/gutenberg", data);
+    if (res) {
       setQuery("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Gutenberg ingestion failed"
-      );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -653,6 +636,7 @@ export function GutenbergForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <MultiSuccess result={result} />}
     </div>
@@ -669,35 +653,24 @@ export function GitHubForm({ onSuccess }: SourceFormProps) {
   const [branch, setBranch] = useState("");
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestResult>();
 
   const handleSubmit = async () => {
     if (!repo.trim()) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestGitHub>[0] = {
-        repo: repo.trim(),
-      };
-      if (filePath.trim()) data.file_path = filePath.trim();
-      if (branch.trim()) data.branch = branch.trim();
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestGitHub(data);
-      setResult(res);
+    const data: Record<string, unknown> = { repo: repo.trim() };
+    if (filePath.trim()) data.file_path = filePath.trim();
+    if (branch.trim()) data.branch = branch.trim();
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/github", data);
+    if (res) {
       setRepo("");
       setFilePath("");
       setBranch("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "GitHub ingestion failed");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -773,6 +746,7 @@ export function GitHubForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <SingleSuccess result={result} />}
     </div>
@@ -789,33 +763,24 @@ export function CrawlForm({ onSuccess }: SourceFormProps) {
   const [maxPages, setMaxPages] = useState(10);
   const [subject, setSubject] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<IngestMultiResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { ingest, progress, loading, result, error } =
+    useSSEIngest<IngestMultiResult>();
 
   const handleSubmit = async () => {
     if (!url.trim()) return;
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      const data: Parameters<typeof sourcesApi.ingestCrawl>[0] = {
-        url: url.trim(),
-        max_depth: maxDepth,
-        max_pages: maxPages,
-      };
-      if (subject.trim()) data.subject = subject.trim();
-      if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
-      const res = await sourcesApi.ingestCrawl(data);
-      setResult(res);
+    const data: Record<string, unknown> = {
+      url: url.trim(),
+      max_depth: maxDepth,
+      max_pages: maxPages,
+    };
+    if (subject.trim()) data.subject = subject.trim();
+    if (gradeLevel.trim()) data.grade_level = gradeLevel.trim();
+    const res = await ingest("/api/v1/content/ingest/crawl", data);
+    if (res) {
       setUrl("");
       setSubject("");
       setGradeLevel("");
       onSuccess?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Web crawl failed");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -906,6 +871,7 @@ export function CrawlForm({ onSuccess }: SourceFormProps) {
         </button>
       </div>
 
+      {loading && progress && <IngestionProgress progress={progress} />}
       {error && <ErrorBanner message={error} />}
       {result && <MultiSuccess result={result} />}
     </div>
