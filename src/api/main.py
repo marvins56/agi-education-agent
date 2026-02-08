@@ -55,6 +55,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Import and include routers
+from src.api.routers import auth, chat, content, health, models, profile, sessions, analytics, learning_path, assessments  # noqa: E402
+from src.api.middleware.request_id import RequestIDMiddleware  # noqa: E402
+from src.api.middleware.rate_limit import RateLimiter, RateLimitMiddleware  # noqa: E402
+
+# Middleware order: added last = runs first (outermost).
+# CORS must be outermost so it handles preflight and adds headers to all responses.
+app.add_middleware(RequestIDMiddleware)
+
+# C5 fix: Register rate limit middleware
+_rate_limiter = RateLimiter(redis_url=settings.REDIS_URL)
+app.add_middleware(RateLimitMiddleware, rate_limiter=_rate_limiter)
+
+# CORS added last = outermost middleware = always runs first
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -62,17 +76,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Import and include routers
-from src.api.routers import auth, chat, content, health, models, profile, sessions, analytics, learning_path, assessments  # noqa: E402
-from src.api.middleware.request_id import RequestIDMiddleware  # noqa: E402
-from src.api.middleware.rate_limit import RateLimiter, RateLimitMiddleware  # noqa: E402
-
-app.add_middleware(RequestIDMiddleware)
-
-# C5 fix: Register rate limit middleware
-_rate_limiter = RateLimiter(redis_url=settings.REDIS_URL)
-app.add_middleware(RateLimitMiddleware, rate_limiter=_rate_limiter)
 
 app.include_router(health.router, prefix="/api/v1", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])

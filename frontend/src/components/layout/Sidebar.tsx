@@ -1,6 +1,14 @@
 "use client";
 
-import { BookOpen, MessageSquare, BarChart3, Settings, LogOut } from "lucide-react";
+import {
+  BookOpen,
+  MessageSquare,
+  BarChart3,
+  UserCircle,
+  ClipboardCheck,
+  Route,
+  LogOut,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
@@ -8,9 +16,11 @@ import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/library", label: "Library", icon: BookOpen },
+  { href: "/profile", label: "Profile", icon: UserCircle },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/assessments", label: "Assessments", icon: ClipboardCheck },
+  { href: "/learning-path", label: "Learning Path", icon: Route },
+  { href: "/library", label: "Library", icon: BookOpen },
 ];
 
 export function Sidebar() {
