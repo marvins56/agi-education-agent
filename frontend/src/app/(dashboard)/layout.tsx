@@ -12,10 +12,16 @@ export default function DashboardLayout({
   return (
     <ProtectedRoute>
       <div className="flex h-screen bg-gray-950">
-        <Sidebar />
+        {/* Desktop Sidebar - hidden on mobile */}
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
+        
         <div className="flex flex-1 flex-col overflow-hidden">
           <Topbar />
-          <main className="flex-1 overflow-y-auto">{children}</main>
+          <main className="flex-1 overflow-y-auto bg-background">
+            {children}
+          </main>
         </div>
       </div>
     </ProtectedRoute>
