@@ -289,8 +289,7 @@ class AchievementEngine:
             Achievement(
                 id="iron_will",
                 name="Iron Will",
-                name="Study for 365 consecutive days",
-                description="The ultimate dedication achievement",
+                description="Study for 365 consecutive days - The ultimate dedication achievement",
                 category=AchievementCategory.STREAKS,
                 rarity=AchievementRarity.LEGENDARY,
                 icon="🛡️",
