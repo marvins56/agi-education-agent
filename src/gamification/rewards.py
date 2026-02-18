@@ -562,8 +562,8 @@ class RewardsManager:
         
         # Calculate total value of owned items
         total_value = sum(
-            sum(item.cost.get(CurrencyType.EDUCOINS, 0) for item in self.store_items.values()
-                if item.id in owned_items)
+            item.cost.get(CurrencyType.EDUCOINS, 0) for item in self.store_items.values()
+            if item.id in owned_items
         )
         
         return {
