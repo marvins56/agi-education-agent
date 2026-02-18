@@ -383,9 +383,10 @@ class DisabilityAwareFSRS:
                 card.last_review and
                 (current_time - card.last_review).days <= 7):
                 encouragement_cards.append(card)
+                continue
                 
             # Cards marked for encouragement
-            elif card.encouragement_needed:
+            if card.encouragement_needed:
                 encouragement_cards.append(card)
                 
         return encouragement_cards[:5]  # Limit to 5 encouragement reviews
@@ -421,7 +422,11 @@ class DisabilityAwareFSRS:
         
     def adapt_difficulty_ceiling(self, user_id: str, success_rate: float):
         """Adapt difficulty ceiling based on user's success rate"""
-        profile = self.get_cognitive_profile(user_id)
+        if user_id not in self.cognitive_profiles:
+            self.cognitive_profiles[user_id] = CognitiveMemoryProfile(
+                profile_type=CognitiveProfile.STANDARD)
+        
+        profile = self.cognitive_profiles[user_id]
         
         if success_rate > 0.8:  # High success rate - can handle more difficulty
             profile.max_difficulty_ceiling = min(10.0, profile.max_difficulty_ceiling + 0.5)

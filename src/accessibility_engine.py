@@ -184,7 +184,7 @@ class VoiceOnlyMode:
             return self._diagram_to_speech(content)
         else:
             # Add natural pauses and clarifications
-            adapted = content.replace(". ", ". <pause> ")
+            adapted = content.replace(".", ". <pause>")
             adapted = re.sub(r'\b(\d+)\b', r'the number \1', adapted)
             return adapted
             
@@ -192,14 +192,15 @@ class VoiceOnlyMode:
         """Convert mathematical notation to speech"""
         # Basic math-to-speech conversion
         speech = math_content
-        speech = speech.replace("+", "plus")
-        speech = speech.replace("-", "minus")
-        speech = speech.replace("*", "times")
-        speech = speech.replace("/", "divided by")
-        speech = speech.replace("=", "equals")
-        speech = speech.replace("²", "squared")
-        speech = speech.replace("³", "cubed")
-        return speech
+        speech = speech.replace("+", " plus ")
+        speech = speech.replace("-", " minus ")
+        speech = speech.replace("*", " times ")
+        speech = speech.replace("/", " divided by ")
+        speech = speech.replace("=", " equals ")
+        speech = speech.replace("²", " squared")
+        speech = speech.replace("³", " cubed")
+        # Clean up extra spaces
+        return re.sub(r'\s+', ' ', speech).strip()
         
     def _diagram_to_speech(self, diagram_description: str) -> str:
         """Convert diagram descriptions to speech"""
@@ -271,6 +272,12 @@ class SimplifiedLanguageProcessor:
         
     def _split_long_sentence(self, sentence: str) -> List[str]:
         """Split long sentences into shorter ones"""
+        words = sentence.split()
+        
+        # If sentence is short enough, return as is
+        if len(words) <= self.max_sentence_length:
+            return [sentence]
+            
         # Simple splitting on conjunctions
         conjunctions = [' and ', ' but ', ' so ', ' because ', ' when ', ' if ']
         
@@ -285,7 +292,11 @@ class SimplifiedLanguageProcessor:
             parts = sentence.split(', ', 1)
             return [parts[0].strip(), parts[1].strip()]
             
-        return [sentence]
+        # Force split at approximately half the sentence length
+        split_point = min(self.max_sentence_length, len(words) // 2)
+        first_part = ' '.join(words[:split_point])
+        second_part = ' '.join(words[split_point:])
+        return [first_part, second_part]
         
     def add_examples(self, concept: str, examples: List[str] = None) -> str:
         """Add examples to explain concepts"""
@@ -358,6 +369,10 @@ class AccessibilityDetector:
         if user_id not in self.typing_speeds:
             self.typing_speeds[user_id] = []
             
+        # Avoid division by zero
+        if typing_time <= 0 or text_length <= 0:
+            return False
+            
         wpm = (text_length / 5) / (typing_time / 60)  # Words per minute
         self.typing_speeds[user_id].append(wpm)
         
@@ -392,11 +407,19 @@ class AccessibilityDetector:
         """Suggest accessibility accommodations based on patterns"""
         suggestions = []
         
-        if self.analyze_typing_pattern(user_id, 0, 0):  # Check existing data
-            suggestions.append("voice_input")
+        # Check existing typing speed data
+        if user_id in self.typing_speeds and len(self.typing_speeds[user_id]) >= 5:
+            avg_wpm = sum(self.typing_speeds[user_id]) / len(self.typing_speeds[user_id])
+            if avg_wpm < 20:
+                suggestions.append("voice_input")
             
-        if self.analyze_error_pattern(user_id, False):  # Check existing data
-            suggestions.append("simplified_language")
+        # Check existing error pattern data
+        if user_id in self.error_counts and user_id in self.response_times:
+            total_interactions = len(self.response_times[user_id])
+            if total_interactions >= 10:
+                error_rate = self.error_counts[user_id] / total_interactions
+                if error_rate > 0.3:
+                    suggestions.append("simplified_language")
             
         # Check response times for patience mode
         if user_id in self.response_times:
