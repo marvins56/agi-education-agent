@@ -21,10 +21,24 @@ class Settings(BaseSettings):
     # AI/LLM
     LLM_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.2:3b"
+    OLLAMA_MODEL: str = "qwen2.5:3b"
+    
+    # Default API Keys (system-wide fallbacks)
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
-    DEFAULT_MODEL: str = "claude-sonnet-4-5-20250929"
+    GOOGLE_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    
+    # Default Models by Provider  
+    DEFAULT_MODEL: str = "claude-3-5-sonnet-20241022"  # Backward compatibility
+    DEFAULT_ANTHROPIC_MODEL: str = "claude-3-5-sonnet-20241022"
+    DEFAULT_OPENAI_MODEL: str = "gpt-4o-mini"
+    DEFAULT_GOOGLE_MODEL: str = "gemini-1.5-flash"
+    DEFAULT_GROQ_MODEL: str = "llama-3.1-8b-instant"
+    DEFAULT_OLLAMA_MODEL: str = "qwen2.5:3b"
+    
+    # Encryption key for storing user API keys (should be environment variable in production)
+    ENCRYPTION_KEY: str = ""
 
     # Voice (optional)
     ELEVENLABS_API_KEY: str = ""

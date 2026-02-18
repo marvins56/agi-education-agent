@@ -57,6 +57,7 @@ app = FastAPI(
 
 # Import and include routers
 from src.api.routers import auth, chat, content, health, models, profile, sessions, analytics, learning_path, assessments, sources, adaptive, voice  # noqa: E402
+from src.api import llm_config  # noqa: E402
 from src.api.middleware.request_id import RequestIDMiddleware  # noqa: E402
 from src.api.middleware.rate_limit import RateLimiter, RateLimitMiddleware  # noqa: E402
 
@@ -90,3 +91,4 @@ app.include_router(models.router, prefix="/api/v1", tags=["Models"])
 app.include_router(sources.router, prefix="/api/v1/content", tags=["Sources"])
 app.include_router(adaptive.router, prefix="/api/v1", tags=["Adaptive Learning"])
 app.include_router(voice.router, prefix="/api/v1", tags=["Voice"])
+app.include_router(llm_config.router, prefix="/api/v1", tags=["LLM Configuration"])
