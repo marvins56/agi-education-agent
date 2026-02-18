@@ -1,132 +1,124 @@
-# EduAGI - Self-Learning Educational AI Agent
+# EduAGI - Accessibility-First Educational AI
 
-A comprehensive, self-learning artificial general intelligence (AGI) agent designed for educational purposes. EduAGI serves as both an intelligent tutor and sign language assistant, capable of teaching any subject to students of varying abilities.
+An inclusive educational AI system designed to accommodate diverse learning needs and disabilities.
 
-## Vision
+## Accessibility Engine (Phase 1)
 
-*"To create an accessible, personalized learning experience for every student, regardless of their learning style, language, or ability."*
+### Core Features
 
-## Key Features
+**🎯 AccessibilityProfile**
+- Stores comprehensive user accessibility needs
+- Supports visual, hearing, cognitive, and motor impairments
+- Auto-detects patterns and suggests accommodations
+- Severity-aware configuration (mild/moderate/severe)
 
-- **Adaptive Tutoring**: AI-driven system that adapts content difficulty, pace, and teaching style
-- **Multi-Subject Knowledge**: Comprehensive knowledge across all academic subjects via RAG
-- **Voice Synthesis**: Natural voice output using ElevenLabs integration
-- **Avatar Presentation**: Visual avatar for content explanation (DeepBrain/HeyGen)
-- **Sign Language Support**: Full ASL/BSL translation for deaf/hard-of-hearing students
-- **Automated Assessment**: Generate quizzes, grade assignments, provide detailed feedback
-- **Memory System**: Long-term memory of student interactions and progress
-- **Self-Learning**: Continuously improves teaching methods from outcomes
+**🗣️ VoiceOnlyMode**
+- Complete learning flow without visual UI
+- Math-to-speech conversion (equations → spoken language)
+- Diagram descriptions and spatial content adaptation
+- Interactive voice-based lessons for blind students
 
-## Documentation
+**📝 SimplifiedLanguageProcessor**
+- Auto-simplifies complex explanations
+- Shorter sentences, simpler vocabulary
+- More examples and concrete concepts
+- Cognitive load reduction for learning disabilities
 
-| Document | Description |
-|----------|-------------|
-| [PRD.md](docs/PRD.md) | Product Requirements Document |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System Architecture Design |
-| [TECHNICAL_DESIGN.md](docs/TECHNICAL_DESIGN.md) | Technical Implementation Details |
-| [IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) | 12-Month Implementation Plan |
+**⏳ PatienceMode**
+- Configurable response timeouts
+- No time pressure learning environment
+- Adaptive timeouts based on user patterns
+- Encouraging feedback and progress celebration
 
-## Project Structure
+**🔧 Configuration Classes**
+- **SpeechConfig**: Rate, pitch, pause duration control
+- **HighContrastConfig**: WCAG AA compliant visual settings
+- **DyslexiaFriendlyConfig**: Typography and spacing optimization
 
+**🕵️ AccessibilityDetector**
+- Analyzes typing speed patterns → suggests voice input
+- Detects frequent errors → recommends simplified mode
+- Monitors response times → enables patience mode
+- Machine learning approach to accessibility needs
+
+### Disability-Aware FSRS
+
+**🧠 Cognitive Memory Profiles**
+- ADHD: Reduced stability, frequent reviews, shorter sessions
+- Dyslexia: Slower consolidation, difficulty ceiling, hints enabled  
+- Autism: Enhanced positive reinforcement, clear progress indicators
+- Intellectual Disabilities: Maximum support with micro-learning
+- Working Memory Deficits: Reduced interference, frequent breaks
+
+**📊 Adaptive Scheduling**
+- Different memory curves per cognitive profile
+- Longer intervals adjusted for learning disabilities
+- Encouragement reviews for confidence building
+- Dynamic difficulty ceiling based on success rates
+
+**💪 Encouragement System**
+- Profile-specific motivational messages
+- Success celebration adapted to user needs
+- Progress visualization for different learning styles
+- Mistake normalization and growth mindset reinforcement
+
+## Usage Example
+
+```python
+from accessibility_engine import AccessibilityEngine, ImpairmentType, SeverityLevel
+from disability_aware_fsrs import DisabilityAwareFSRS
+
+# Initialize systems
+engine = AccessibilityEngine()
+fsrs = DisabilityAwareFSRS()
+
+# Create user profile
+profile = engine.create_profile("student_123")
+profile.add_impairment(ImpairmentType.COGNITIVE, "dyslexia", SeverityLevel.MODERATE)
+profile.add_impairment(ImpairmentType.VISUAL, "low_vision", SeverityLevel.MILD)
+
+# Register with FSRS
+fsrs.register_cognitive_profile("student_123", profile)
+
+# Process educational content
+content = "This demonstrates complex photosynthetic mechanisms."
+accessible_content = engine.process_content("student_123", content)
+# Output: "This shows how plants make food. For example: A tree uses sunlight."
+
+# Get UI configuration
+ui_config = engine.get_ui_config("student_123")
+# Returns: High contrast + dyslexia-friendly settings
+
+# Schedule learning with adaptive FSRS
+card = fsrs.schedule_new_card("student_123", initial_difficulty=4.0)
+# Automatically limited to appropriate difficulty ceiling
+
+# Handle review with encouragement
+updated_card = fsrs.schedule_review("student_123", card, ReviewOutcome.GOOD)
+encouragement = fsrs.get_encouragement_message("student_123", updated_card, ReviewOutcome.GOOD)
+# Returns: "Great effort! You're making progress!"
 ```
-agi-education-agent/
-├── docs/                    # Documentation
-│   ├── PRD.md
-│   ├── ARCHITECTURE.md
-│   ├── TECHNICAL_DESIGN.md
-│   └── IMPLEMENTATION_ROADMAP.md
-├── src/
-│   ├── agents/              # AI Agent implementations
-│   ├── memory/              # Memory system (working, episodic, semantic)
-│   ├── tools/               # Agent tools and utilities
-│   ├── avatars/             # Avatar generation
-│   ├── voice/               # Voice synthesis (ElevenLabs)
-│   ├── sign_language/       # Sign language translation
-│   ├── assessment/          # Grading and quiz generation
-│   └── core/                # Core utilities
-├── tests/                   # Test suite
-├── config/                  # Configuration files
-└── data/                    # Data storage
-```
 
-## Technology Stack
+## Testing
 
-| Component | Technology |
-|-----------|------------|
-| Backend | FastAPI (Python 3.11+) |
-| LLM | Claude (Anthropic) |
-| Agent Framework | LangChain, LangGraph |
-| Vector DB | ChromaDB |
-| Database | PostgreSQL |
-| Cache | Redis |
-| Voice | ElevenLabs API |
-| Avatar | DeepBrain AI / HeyGen |
-| Sign Language | Sign-Speak API |
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL 15+
-- Redis 7+
-- Docker (optional)
-
-### Installation
+Run comprehensive tests:
 
 ```bash
-# Clone repository
-git clone https://github.com/your-org/agi-education-agent.git
-cd agi-education-agent
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or
-.\venv\Scripts\activate  # Windows
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Copy environment variables
-cp .env.example .env
-# Edit .env with your API keys
-
-# Run database migrations
-alembic upgrade head
-
-# Start the server
-uvicorn src.api.main:app --reload
+python -m pytest src/test_accessibility_modules.py -v
 ```
 
-### Environment Variables
+## Architecture Principles
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-xxx      # Required: Claude API key
-OPENAI_API_KEY=sk-xxx             # Required: For embeddings
-ELEVENLABS_API_KEY=xxx            # Required: Voice synthesis
-DATABASE_URL=postgresql://...      # Required: PostgreSQL connection
-REDIS_URL=redis://localhost:6379   # Required: Redis connection
-```
+1. **Inclusive by Design**: Accessibility considered from ground up
+2. **Adaptive Learning**: System learns user needs and adjusts automatically  
+3. **Evidence-Based**: Uses research on cognitive science and special education
+4. **Configurable**: Fine-grained control over all accessibility features
+5. **Encouraging**: Emphasizes progress, effort, and growth mindset
 
-## Roadmap
+## Next Phases
 
-- **Phase 1** (Months 1-2): Foundation - Core agents, memory system
-- **Phase 2** (Months 2-3): Voice & Avatar integration
-- **Phase 3** (Months 3-4): Sign language support
-- **Phase 4** (Months 4-5): Assessment system
-- **Phase 5** (Months 5-6): MVP Launch
-- **Phase 6** (Months 7-12): Mobile apps, LMS integrations, scale
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contact
-
-- Project Lead: TBD
-- Email: TBD
+- [ ] Phase 2: Advanced voice synthesis with emotional inflection
+- [ ] Phase 3: Computer vision for gesture-based interaction
+- [ ] Phase 4: Real-time cognitive load monitoring
+- [ ] Phase 5: Peer learning with accessibility matching
