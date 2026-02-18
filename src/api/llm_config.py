@@ -8,18 +8,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.security import get_current_user
+from src.api.dependencies import get_current_user
 from src.models.database import get_db
 from src.models.llm_settings import UserLLMSettings
 from src.models.user import User
 from src.utils.encryption import api_key_encryption
 
-router = APIRouter(prefix="/api/models", tags=["LLM Configuration"])
+router = APIRouter(prefix="/models", tags=["LLM Configuration"])
 
 
 class ProviderConfigRequest(BaseModel):
     """Request model for configuring user's LLM provider."""
-    preferred_provider: str = Field(..., regex="^(ollama|anthropic|openai|google|groq)$")
+    preferred_provider: str = Field(..., pattern="^(ollama|anthropic|openai|google|groq)$")
     preferred_model: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
