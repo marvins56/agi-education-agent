@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ProgressCharts } from '@/components/dashboard/ProgressCharts';
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/spinner";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { cn } from "@/lib/utils/cn";
 

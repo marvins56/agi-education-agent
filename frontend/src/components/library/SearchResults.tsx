@@ -1,7 +1,7 @@
 "use client";
 
 import { X, Search } from "lucide-react";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/spinner";
 import type { SearchResultItem } from "@/lib/types/api";
 
 interface SearchResultsProps {

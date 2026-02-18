@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { MessageSquarePlus } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/spinner";
 import type { ChatMessage as ChatMessageType } from "@/lib/types/api";
 
 interface ChatAreaProps {

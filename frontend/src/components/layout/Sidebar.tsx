@@ -10,7 +10,7 @@ import {
   LogOut,
   FlaskConical,
   Mic,
-  Timeline,
+  Timer,
   FileText,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,7 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 const navItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/voice", label: "Voice", icon: Mic },
-  { href: "/timeline", label: "Timeline", icon: Timeline },
+  { href: "/timeline", label: "Timeline", icon: Timer },
   { href: "/sources", label: "Sources", icon: FileText },
   { href: "/profile", label: "Profile", icon: UserCircle },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },

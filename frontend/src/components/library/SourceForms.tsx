@@ -12,7 +12,7 @@ import {
   CheckCircle,
   AlertTriangle,
 } from "lucide-react";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/spinner";
 import { useSSEIngest, type SSEProgress } from "@/hooks/useSSEIngest";
 import type {
   IngestResult,

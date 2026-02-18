@@ -28,7 +28,7 @@ import {
   Library,
   Github,
 } from "lucide-react";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/spinner";
 
 type UploadTab =
   | "file"

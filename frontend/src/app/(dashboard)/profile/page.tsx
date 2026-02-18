@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { User, BookOpen, Target, TrendingUp } from "lucide-react";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import type { TopicMastery } from "@/lib/types/api";
