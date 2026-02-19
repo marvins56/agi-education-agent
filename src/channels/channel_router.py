@@ -55,7 +55,7 @@ class ChannelRoutingLog(Base):
     routed_channel = Column(String, nullable=False)
     routing_reason = Column(String, nullable=False)
     success = Column(Boolean, nullable=True)  # Set after delivery attempt
-    metadata = Column(JSON, nullable=False, default=dict)
+    routing_metadata = Column("metadata", JSON, nullable=False, default=dict)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 
@@ -393,7 +393,7 @@ class ChannelRouter:
             requested_channel=requested_channel,
             routed_channel=decision.chosen_channel.value,
             routing_reason=decision.reason,
-            metadata={
+            routing_metadata={
                 'confidence': decision.confidence,
                 'fallback_channels': [c.value for c in decision.fallback_channels],
                 **decision.metadata

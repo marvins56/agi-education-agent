@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     # Encryption key for storing user API keys (should be environment variable in production)
     ENCRYPTION_KEY: str = ""
 
+    # Africa's Talking (SMS/USSD)
+    AFRICASTALKING_USERNAME: str = "sandbox"
+    AFRICASTALKING_API_KEY: str = ""
+    AFRICASTALKING_SHORTCODE: str = ""
+    AFRICASTALKING_ENVIRONMENT: str = "sandbox"  # sandbox or production
+
+    # Twilio (SMS fallback)
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""
+
     # Voice (optional)
     ELEVENLABS_API_KEY: str = ""
 

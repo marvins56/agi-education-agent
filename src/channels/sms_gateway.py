@@ -121,11 +121,15 @@ class SMSProvider(ABC):
 class AfricasTalkingSMSProvider(SMSProvider):
     """Africa's Talking SMS provider - most popular in East Africa"""
     
-    def __init__(self, username: str, api_key: str, shortcode: str):
+    def __init__(self, username: str, api_key: str, shortcode: str, environment: str = "sandbox"):
         self.username = username
         self.api_key = api_key
         self.shortcode = shortcode
-        self.base_url = "https://api.africastalking.com/version1"
+        self.environment = environment
+        if environment == "sandbox":
+            self.base_url = "https://api.sandbox.africastalking.com/version1"
+        else:
+            self.base_url = "https://api.africastalking.com/version1"
         
     async def send_sms(self, message: SMSMessage) -> SMSResponse:
         """Send SMS via Africa's Talking API"""
@@ -316,11 +320,12 @@ class SMSGateway:
     def _initialize_providers(self):
         """Initialize SMS providers from configuration"""
         # Africa's Talking as primary
-        if hasattr(settings, 'AFRICASTALKING_USERNAME'):
+        if getattr(settings, 'AFRICASTALKING_API_KEY', ''):
             africastalking = AfricasTalkingSMSProvider(
                 username=settings.AFRICASTALKING_USERNAME,
                 api_key=settings.AFRICASTALKING_API_KEY,
-                shortcode=settings.AFRICASTALKING_SHORTCODE
+                shortcode=getattr(settings, 'AFRICASTALKING_SHORTCODE', ''),
+                environment=getattr(settings, 'AFRICASTALKING_ENVIRONMENT', 'sandbox')
             )
             self.providers.append(africastalking)
             
