@@ -182,3 +182,22 @@ export class VoiceAPI {
     })
   }
 }
+// Convenience function exports
+export async function startVoiceSession(subject?: string): Promise<VoiceSession> {
+  return VoiceAPI.startSession(subject);
+}
+export async function endVoiceSession(sessionId: string): Promise<void> {
+  return VoiceAPI.endSession(sessionId);
+}
+export async function sendVoiceMessage(sessionId: string, audioData: Blob, transcription?: string): Promise<VoiceMessage> {
+  return VoiceAPI.processVoiceMessage(sessionId, audioData, transcription);
+}
+export async function getVoiceHistory(): Promise<VoiceSession[]> {
+  return VoiceAPI.getSessions();
+}
+export async function getVoiceSettings(): Promise<VoiceSettings> {
+  return VoiceAPI.getSettings();
+}
+export async function updateVoiceSettings(settings: Partial<VoiceSettings>): Promise<VoiceSettings> {
+  return VoiceAPI.updateSettings(settings);
+}

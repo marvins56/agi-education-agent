@@ -72,7 +72,7 @@ app.add_middleware(RateLimitMiddleware, rate_limiter=_rate_limiter)
 # CORS added last = outermost middleware = always runs first
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],  # Dev: allow all origins (trycloudflare URLs change each restart)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

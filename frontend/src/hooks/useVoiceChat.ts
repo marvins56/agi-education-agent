@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { VoiceSession, VoiceMessage, VoiceSettings, startVoiceSession, endVoiceSession, sendVoiceMessage, getVoiceHistory, getVoiceSettings, updateVoiceSettings } from '@/lib/api/voice';
+import { VoiceSession, VoiceMessage, VoiceSettings, startVoiceSession, endVoiceSession, sendVoiceMessage, getVoiceHistory, getVoiceSettings, updateVoiceSettings as apiUpdateVoiceSettings } from '@/lib/api/voice';
 
 export interface VoiceState {
   isConnected: boolean;
@@ -32,7 +32,7 @@ export const useVoiceChat = (sessionId?: string) => {
   const audioStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number>(0);
 
   // Check if voice is supported
   const isVoiceSupported = typeof navigator !== 'undefined' && 
@@ -127,8 +127,8 @@ export const useVoiceChat = (sessionId?: string) => {
       setSettings(voiceSettings);
       
       // Load message history
-      if (newSession.conversationHistory.length > 0) {
-        setMessages(newSession.conversationHistory);
+      if (newSession.messages.length > 0) {
+        setMessages(newSession.messages);
       }
       
       setVoiceState(prev => ({ 
@@ -227,7 +227,7 @@ export const useVoiceChat = (sessionId?: string) => {
           
           try {
             // Send audio to API
-            const response = await sendVoiceMessage(session.id, base64Audio);
+            const response = await sendVoiceMessage(session.id, audioBlob);
             setMessages(prev => [...prev, response]);
             setVoiceResponse(response);
             
@@ -303,7 +303,7 @@ export const useVoiceChat = (sessionId?: string) => {
   // Update settings
   const updateVoiceSettings = useCallback(async (newSettings: Partial<VoiceSettings>) => {
     try {
-      const updatedSettings = await updateVoiceSettings(newSettings);
+      const updatedSettings = await apiUpdateVoiceSettings(newSettings);
       setSettings(updatedSettings);
     } catch (error) {
       console.error('Failed to update voice settings:', error);
