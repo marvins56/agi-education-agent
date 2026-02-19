@@ -21,7 +21,7 @@ class DataAggregator:
     async def get_student_summary(self, student_id: str) -> dict:
         """Fetch and compute all student dashboard metrics."""
         async with self.db_session_factory() as session:
-            now = datetime.now(timezone.utc)
+            now = datetime.utcnow()
             thirty_days_ago = now - timedelta(days=30)
 
             result = await session.execute(
@@ -87,7 +87,7 @@ class DataAggregator:
     ) -> list[dict]:
         """Return activity counts grouped by day and hour."""
         async with self.db_session_factory() as session:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff = datetime.utcnow() - timedelta(days=days)
 
             result = await session.execute(
                 select(LearningEvent)
@@ -114,7 +114,7 @@ class DataAggregator:
     ) -> dict:
         """Return mastery levels grouped by subject and topic."""
         async with self.db_session_factory() as session:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff = datetime.utcnow() - timedelta(days=days)
             stmt = (
                 select(LearningEvent)
                 .where(LearningEvent.student_id == student_id)

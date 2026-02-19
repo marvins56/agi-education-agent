@@ -159,8 +159,9 @@ export const useContainerQuery = (containerRef: React.RefObject<HTMLElement>) =>
     }
 
     // Fallback to window resize
-    window.addEventListener('resize', updateContainerDimensions);
-    return () => window.removeEventListener('resize', updateContainerDimensions);
+    const win = globalThis.window;
+    win.addEventListener('resize', updateContainerDimensions);
+    return () => win.removeEventListener('resize', updateContainerDimensions);
   }, [containerRef]);
 
   return containerDimensions;

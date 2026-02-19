@@ -16,3 +16,46 @@ export function Card({ className, children, ...props }: CardProps) {
     </div>
   );
 }
+
+export function CardHeader({ className, children, ...props }: CardProps) {
+  return (
+    <div className={cn("flex flex-col space-y-1.5 pb-4", className)} {...props}>
+      {children}
+    </div>
+  );
+}
+
+export function CardTitle({ className, children, ...props }: CardProps) {
+  return (
+    <h3
+      className={cn("text-lg font-semibold leading-none tracking-tight text-white", className)}
+      {...props}
+    >
+      {children}
+    </h3>
+  );
+}
+
+export function CardContent({ className, children, ...props }: CardProps) {
+  return (
+    <div className={cn("pt-0", className)} {...props}>
+      {children}
+    </div>
+  );
+}
+
+export function CardDescription({ className, children, ...props }: CardProps) {
+  return (
+    <p className={cn("text-sm text-gray-400", className)} {...props}>
+      {children}
+    </p>
+  );
+}
+
+export function CardFooter({ className, children, ...props }: CardProps) {
+  return (
+    <div className={cn("flex items-center pt-4", className)} {...props}>
+      {children}
+    </div>
+  );
+}

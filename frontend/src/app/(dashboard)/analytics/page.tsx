@@ -259,7 +259,7 @@ export default function AnalyticsPage() {
           <Button 
             onClick={handleRefresh} 
             disabled={refreshing}
-            variant="outline"
+            variant="secondary"
             size="sm"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />

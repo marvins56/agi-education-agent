@@ -208,12 +208,12 @@ export function SourceViewer({ source, onAnalyze, className }: SourceViewerProps
               </ScrollArea>
               
               {source.sourceUrl && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={source.sourceUrl} target="_blank" rel="noopener noreferrer">
+                <a href={source.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     View Original Source
-                  </a>
-                </Button>
+                  </Button>
+                </a>
               )}
             </TabsContent>
             
@@ -299,7 +299,7 @@ export function SourceViewer({ source, onAnalyze, className }: SourceViewerProps
                 <h3 className="font-medium">Source Analysis</h3>
                 
                 <div className="flex items-center gap-2">
-                  <Select value={analysisMode} onValueChange={(value: 'guided' | 'free') => setAnalysisMode(value)}>
+                  <Select value={analysisMode} onValueChange={(value: string) => setAnalysisMode(value as 'guided' | 'free')}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>
@@ -441,8 +441,8 @@ export function SourceViewer({ source, onAnalyze, className }: SourceViewerProps
                 </div>
               </div>
             </TabsContent>
-          </Tabs>
-        </CardContent>
+          </CardContent>
+        </Tabs>
       </Card>
     </div>
   )

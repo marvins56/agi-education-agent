@@ -39,7 +39,7 @@ export function VoiceChat({ onMessage, className }: VoiceChatProps) {
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number>(0)
   
   // Initialize audio context for visualization
   useEffect(() => {

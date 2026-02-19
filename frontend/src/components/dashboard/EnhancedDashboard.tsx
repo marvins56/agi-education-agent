@@ -16,7 +16,7 @@ import {
   Brain,
   MessageCircle,
   FileText,
-  Timeline,
+  CalendarRange as Timeline,
   Users,
   Star,
   Flame,
@@ -323,7 +323,7 @@ export function EnhancedDashboard({ data, onStartSession, className }: EnhancedD
                           {review.type.replace('_', ' ')} • Due {review.dueDate.toLocaleDateString()}
                         </div>
                       </div>
-                      <Badge variant="outline" size="sm">
+                      <Badge variant="outline">
                         {review.priority}
                       </Badge>
                     </div>
@@ -391,7 +391,7 @@ export function EnhancedDashboard({ data, onStartSession, className }: EnhancedD
                               style={{ width: `${topic.progress}%` }}
                             />
                           </div>
-                          <Badge variant="outline" size="sm">
+                          <Badge variant="outline">
                             {topic.status.replace('_', ' ')}
                           </Badge>
                         </div>

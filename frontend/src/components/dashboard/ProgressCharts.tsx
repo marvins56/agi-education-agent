@@ -181,7 +181,7 @@ export function ProgressCharts({ data, timeRange, selectedMetric, onMetricChange
                     borderRadius: '6px',
                     color: '#F9FAFB'
                   }}
-                  formatter={(value: number, name: string) => [`${value}%`, name]}
+                  formatter={((value: any, name: any) => [`${value ?? 0}%`, name ?? '']) as any}
                   labelFormatter={(label) => new Date(label).toLocaleDateString()}
                 />
                 <Area
@@ -229,7 +229,7 @@ export function ProgressCharts({ data, timeRange, selectedMetric, onMetricChange
                     borderRadius: '6px',
                     color: '#F9FAFB'
                   }}
-                  formatter={(value: number) => [`${value}%`, 'Mastery']}
+                  formatter={((value: any) => [`${value ?? 0}%`, 'Mastery']) as any}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -307,7 +307,7 @@ export function ProgressCharts({ data, timeRange, selectedMetric, onMetricChange
                     borderRadius: '6px',
                     color: '#F9FAFB'
                   }}
-                  formatter={(value: number) => [`${value} min`, 'Study Time']}
+                  formatter={((value: any) => [`${value ?? 0} min`, 'Study Time']) as any}
                 />
                 <Bar dataKey="minutes" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
                 <Line 

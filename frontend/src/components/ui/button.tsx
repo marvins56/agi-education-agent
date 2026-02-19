@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils/cn";
 import type { ButtonHTMLAttributes } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "outline";
   size?: "sm" | "md" | "lg";
 }
 
@@ -27,6 +27,7 @@ export function Button({
           "text-gray-300 hover:bg-gray-800 hover:text-gray-100":
             variant === "ghost",
           "bg-red-600 text-white hover:bg-red-500": variant === "danger",
+          "border border-gray-600 bg-transparent text-gray-200 hover:bg-gray-800": variant === "outline",
         },
         {
           "px-3 py-1.5 text-sm": size === "sm",

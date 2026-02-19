@@ -34,7 +34,7 @@ export function VoiceControls({
       {/* Main Record Button */}
       <Button
         size="lg"
-        variant={isRecording ? "destructive" : "default"}
+        variant={isRecording ? "danger" : "primary"}
         className={`relative h-16 w-16 rounded-full transition-all duration-200 ${
           isRecording ? 'animate-pulse shadow-lg shadow-red-200' : ''
         }`}

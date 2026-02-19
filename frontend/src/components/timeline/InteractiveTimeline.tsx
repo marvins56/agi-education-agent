@@ -114,7 +114,7 @@ export function InteractiveTimeline({
 
     // Add timeline axis
     const timeAxis = d3.axisBottom(xScale)
-      .tickFormat(d3.timeFormat('%Y'));
+      .tickFormat((d) => d3.timeFormat('%Y')(d as Date));
 
     g.append('g')
       .attr('class', 'x-axis')

@@ -11,6 +11,7 @@ from src.adaptive.schemas import (
     AdaptiveRecommendation, StudentInteraction, KnowledgeState,
     FSRSCard, LearningStyleProfile
 )
+from src.api.dependencies import get_current_user, get_memory
 from src.api.middleware.auth import get_current_student
 from src.memory.manager import MemoryManager
 
@@ -76,10 +77,10 @@ class LearningStyleResponse(BaseModel):
     last_updated: datetime
 
 
-async def get_adaptive_engine() -> AdaptiveLearningEngine:
+async def get_adaptive_engine(
+    memory_manager: MemoryManager = Depends(get_memory),
+) -> AdaptiveLearningEngine:
     """Dependency to get adaptive learning engine."""
-    # In a real app, this would be injected properly
-    memory_manager = MemoryManager()  # This should be dependency injected
     return AdaptiveLearningEngine(memory_manager)
 
 
@@ -93,7 +94,7 @@ async def record_interaction(
     """Record a student learning interaction and update knowledge state."""
     
     try:
-        student_id = current_student["id"]
+        student_id = str(current_student.id)
         
         # Create interaction object
         interaction = StudentInteraction(
@@ -136,7 +137,7 @@ async def get_knowledge_state(
     """Get current student knowledge state."""
     
     try:
-        student_id = current_student["id"]
+        student_id = str(current_student.id)
         knowledge_state = await engine._get_knowledge_state(student_id)
         
         return KnowledgeStateResponse(
@@ -163,7 +164,7 @@ async def get_recommendations(
     """Get personalized learning recommendations."""
     
     try:
-        student_id = current_student["id"]
+        student_id = str(current_student.id)
         
         recommendation = await engine.get_adaptive_recommendations(
             student_id=student_id,
@@ -205,7 +206,7 @@ async def get_learning_style(
     """Get student's learning style profile."""
     
     try:
-        student_id = current_student["id"]
+        student_id = str(current_student.id)
         
         # Get interaction history
         interaction_history = await engine._get_interaction_history(student_id)
@@ -246,7 +247,7 @@ async def get_due_reviews(
     """Get concepts due for spaced repetition review."""
     
     try:
-        student_id = current_student["id"]
+        student_id = str(current_student.id)
         fsrs_cards = await engine._get_student_fsrs_cards(student_id)
         
         # Get due cards
@@ -329,7 +330,7 @@ async def get_learning_progress(
     """Get student learning progress analytics."""
     
     try:
-        student_id = current_student["id"]
+        student_id = str(current_student.id)
         
         # Get recent interactions
         interactions = await engine._get_interaction_history(student_id)
